@@ -1,0 +1,2 @@
+# Urbania
+Urbania es una API para la gestión y seguimiento de incidentes urbanos que permite a los ciudadanos reportar situaciones relacionadas con desastres naturales, riesgos para la salud, fallas de infraestructura y problemas ambientales. El sistema centraliza la información de los reportes, permite clasificarlos y hacer seguimiento a su estado, facilitando la identificación de problemáticas y la coordinación de su atención por parte de las autoridades competentes.
