@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { Repository } from 'typeorm';
@@ -29,18 +29,36 @@ describe('EvidencesService', () => {
     );
   });
 
-  it('accepts HTTPS URLs and rejects HTTP URLs', async () => {
+  it('accepts HTTPS and HTTP URL formats in the DTO', async () => {
     const valid = plainToInstance(CreateEvidenceDto, {
       url: 'https://files.example.org/photo.jpg',
       type: EvidenceType.IMAGE,
     });
-    const invalid = plainToInstance(CreateEvidenceDto, {
+    const devUrl = plainToInstance(CreateEvidenceDto, {
       url: 'http://files.example.org/photo.jpg',
       type: EvidenceType.IMAGE,
     });
 
     expect(await validate(valid)).toHaveLength(0);
-    expect(await validate(invalid)).not.toHaveLength(0);
+    expect(await validate(devUrl)).toHaveLength(0);
+  });
+
+  it('rejects HTTP evidence URLs in production', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    authorization.authorizeModification.mockResolvedValue(undefined);
+
+    try {
+      await expect(
+        service.create('report-id', principal, {
+          url: 'http://files.example.org/photo.jpg',
+          type: EvidenceType.IMAGE,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repository.save).not.toHaveBeenCalled();
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
   });
 
   it('authorizes deletion against the evidence report, not a caller-supplied report', async () => {

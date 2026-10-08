@@ -9,9 +9,13 @@ import {
   Post,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNoContentResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -29,10 +33,14 @@ export class EvidencesController {
 
   @Post('reports/:id/evidences')
   @ApiOperation({
-    summary:
-      'Registrar metadatos de una URL HTTPS; no carga ni inspecciona el archivo',
+    summary: 'Registrar metadatos de una evidencia por URL',
+    description:
+      'Guarda solo la URL. No carga, inspecciona ni elimina archivos remotos.',
   })
   @ApiCreatedResponse({ type: Evidence })
+  @ApiBadRequestResponse({ description: 'URL invalida o protocolo no permitido' })
+  @ApiForbiddenResponse({ description: 'El ciudadano no es propietario' })
+  @ApiNotFoundResponse({ description: 'Reporte no encontrado' })
   create(
     @Param('id', ParseUUIDPipe) reportId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -43,6 +51,9 @@ export class EvidencesController {
 
   @Get('reports/:id/evidences')
   @ApiOperation({ summary: 'Consultar evidencias de un reporte autorizado' })
+  @ApiOkResponse({ type: Evidence, isArray: true })
+  @ApiForbiddenResponse({ description: 'Sin permiso para consultar el reporte' })
+  @ApiNotFoundResponse({ description: 'Reporte no encontrado' })
   find(
     @Param('id', ParseUUIDPipe) reportId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -56,6 +67,8 @@ export class EvidencesController {
   @ApiNoContentResponse({
     description: 'Metadatos eliminados; el archivo remoto permanece',
   })
+  @ApiForbiddenResponse({ description: 'El ciudadano no es propietario' })
+  @ApiNotFoundResponse({ description: 'Evidencia o reporte no encontrados' })
   remove(
     @Param('id', ParseUUIDPipe) evidenceId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

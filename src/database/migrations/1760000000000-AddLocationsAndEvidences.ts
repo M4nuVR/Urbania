@@ -15,6 +15,12 @@ export class AddLocationsAndEvidences1760000000000 implements MigrationInterface
         "longitude" double precision,
         CONSTRAINT "PK_locations_id" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_locations_report_id" UNIQUE ("reportId"),
+        CONSTRAINT "FK_locations_report_id" FOREIGN KEY ("reportId")
+          REFERENCES "reports" ("id") ON DELETE CASCADE,
+        CONSTRAINT "CK_locations_text_reference" CHECK (
+          NULLIF(BTRIM(COALESCE("address", '')), '') IS NOT NULL OR
+          NULLIF(BTRIM(COALESCE("neighborhood", '')), '') IS NOT NULL
+        ),
         CONSTRAINT "CK_locations_coordinates_pair" CHECK (
           ("latitude" IS NULL AND "longitude" IS NULL) OR
           ("latitude" IS NOT NULL AND "longitude" IS NOT NULL)
@@ -36,6 +42,8 @@ export class AddLocationsAndEvidences1760000000000 implements MigrationInterface
         "description" varchar(500),
         "createdAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         CONSTRAINT "PK_evidences_id" PRIMARY KEY ("id"),
+        CONSTRAINT "FK_evidences_report_id" FOREIGN KEY ("reportId")
+          REFERENCES "reports" ("id") ON DELETE CASCADE,
         CONSTRAINT "CK_evidences_type" CHECK ("type" IN ('IMAGE', 'FILE'))
       )
     `);

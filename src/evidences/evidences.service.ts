@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
 import { Repository } from 'typeorm';
@@ -21,6 +25,8 @@ export class EvidencesService {
     input: CreateEvidenceDto,
   ): Promise<Evidence> {
     await this.reportAuthorization.authorizeModification(reportId, principal);
+    this.validateUrlProtocol(input.url);
+
     return this.evidences.save(
       this.evidences.create({
         ...input,
@@ -56,5 +62,24 @@ export class EvidencesService {
       principal,
     );
     await this.evidences.remove(evidence);
+  }
+
+  private validateUrlProtocol(url: string): void {
+    let protocol: string;
+    try {
+      protocol = new URL(url).protocol;
+    } catch {
+      throw new BadRequestException('La URL de evidencia no es valida');
+    }
+
+    if (protocol === 'https:') {
+      return;
+    }
+    if (protocol === 'http:' && process.env.NODE_ENV !== 'production') {
+      return;
+    }
+    throw new BadRequestException(
+      'La URL de evidencia debe usar HTTPS; HTTP solo se permite en desarrollo',
+    );
   }
 }

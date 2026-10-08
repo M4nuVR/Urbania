@@ -1,4 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsNumber,
   IsOptional,
@@ -28,6 +29,7 @@ export class CreateLocationDto {
   zone?: string;
 
   @ApiPropertyOptional({ example: 4.711 })
+  @Type(() => Number)
   @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(-90)
@@ -35,6 +37,7 @@ export class CreateLocationDto {
   latitude?: number;
 
   @ApiPropertyOptional({ example: -74.0721 })
+  @Type(() => Number)
   @IsOptional()
   @IsNumber({ allowNaN: false, allowInfinity: false })
   @Min(-180)

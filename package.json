@@ -6,12 +6,12 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
-    "build": "nest build",
-    "deploy": "nest deploy",
+    "build": "node ./node_modules/@nestjs/cli/bin/nest.js build",
+    "deploy": "node ./node_modules/@nestjs/cli/bin/nest.js deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
+    "start": "node ./node_modules/@nestjs/cli/bin/nest.js start",
+    "start:dev": "node ./node_modules/@nestjs/cli/bin/nest.js start --watch",
+    "start:debug": "node ./node_modules/@nestjs/cli/bin/nest.js start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "oxlint --type-aware src/ test/",
     "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
@@ -34,7 +34,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sql.js": "^1.14.2",
-    "typeorm": "^1.1.2"
+    "typeorm": "^0.3.27"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",

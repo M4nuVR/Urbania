@@ -12,7 +12,7 @@ export class CreateEvidenceDto {
   @ApiProperty({ example: 'https://files.example.org/evidence/photo.jpg' })
   @IsString()
   @MaxLength(2048)
-  @IsUrl({ protocols: ['https'], require_protocol: true })
+  @IsUrl({ protocols: ['https', 'http'], require_protocol: true })
   url: string;
 
   @ApiProperty({ enum: EvidenceType, example: EvidenceType.IMAGE })
@@ -20,7 +20,7 @@ export class CreateEvidenceDto {
   type: EvidenceType;
 
   @ApiPropertyOptional({
-    example: 'Bache junto a la intersección',
+    example: 'Bache junto a la interseccion',
     maxLength: 500,
   })
   @IsOptional()

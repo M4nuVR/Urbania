@@ -2,11 +2,11 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AddLocationsAndEvidences1760000000000 } from './database/migrations/1760000000000-AddLocationsAndEvidences';
 import { Evidence } from './evidences/evidence.entity';
 import { EvidencesModule } from './evidences/evidences.module';
 import { Location } from './locations/location.entity';
 import { LocationsModule } from './locations/locations.module';
-import { AddLocationsAndEvidences1760000000000 } from './database/migrations/1760000000000-AddLocationsAndEvidences';
 
 const databaseOptions: TypeOrmModuleOptions =
   process.env.NODE_ENV === 'test'

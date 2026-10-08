@@ -8,9 +8,13 @@ import {
   Post,
 } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
+  ApiForbiddenResponse,
   ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
@@ -28,8 +32,16 @@ export class LocationsController {
   constructor(private readonly locationsService: LocationsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Registrar la ubicación de un reporte' })
+  @ApiOperation({ summary: 'Registrar la ubicacion de un reporte' })
   @ApiCreatedResponse({ type: Location })
+  @ApiBadRequestResponse({
+    description: 'Coordenadas incompletas o sin referencia textual util',
+  })
+  @ApiConflictResponse({
+    description: 'El reporte ya tiene ubicacion o ya no esta REPORTED',
+  })
+  @ApiForbiddenResponse({ description: 'El ciudadano no es propietario' })
+  @ApiNotFoundResponse({ description: 'Reporte no encontrado' })
   create(
     @Param('id', ParseUUIDPipe) reportId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -39,8 +51,10 @@ export class LocationsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Consultar la ubicación de un reporte autorizado' })
-  @ApiNotFoundResponse({ description: 'Reporte o ubicación no encontrados' })
+  @ApiOperation({ summary: 'Consultar la ubicacion de un reporte autorizado' })
+  @ApiOkResponse({ type: Location })
+  @ApiForbiddenResponse({ description: 'Sin permiso para consultar el reporte' })
+  @ApiNotFoundResponse({ description: 'Reporte o ubicacion no encontrados' })
   find(
     @Param('id', ParseUUIDPipe) reportId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
@@ -50,8 +64,15 @@ export class LocationsController {
 
   @Patch()
   @ApiOperation({
-    summary: 'Corregir la ubicación mientras el reporte esté REPORTED',
+    summary: 'Actualizar la ubicacion mientras el reporte este REPORTED',
   })
+  @ApiOkResponse({ type: Location })
+  @ApiBadRequestResponse({
+    description: 'Coordenadas incompletas, body vacio o sin referencia textual util',
+  })
+  @ApiConflictResponse({ description: 'El reporte ya no permite modificaciones' })
+  @ApiForbiddenResponse({ description: 'El ciudadano no es propietario' })
+  @ApiNotFoundResponse({ description: 'Reporte o ubicacion no encontrados' })
   update(
     @Param('id', ParseUUIDPipe) reportId: string,
     @CurrentPrincipal() principal: AuthenticatedPrincipal,

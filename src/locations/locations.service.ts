@@ -30,11 +30,10 @@ export class LocationsService {
     this.validateLocation(input);
 
     if (await this.locations.findOneBy({ reportId })) {
-      throw new ConflictException('El reporte ya tiene una ubicación');
+      throw new ConflictException('El reporte ya tiene una ubicacion');
     }
 
     const location = this.locations.create({
-      ...input,
       id: randomUUID(),
       reportId,
       address: input.address ?? null,
@@ -43,6 +42,7 @@ export class LocationsService {
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
     });
+
     try {
       return await this.locations.save(location);
     } catch (error) {
@@ -50,7 +50,7 @@ export class LocationsService {
         error instanceof QueryFailedError &&
         (error.driverError as { code?: string }).code === '23505'
       ) {
-        throw new ConflictException('El reporte ya tiene una ubicación');
+        throw new ConflictException('El reporte ya tiene una ubicacion');
       }
       throw error;
     }
@@ -63,7 +63,7 @@ export class LocationsService {
     await this.reportAuthorization.authorizeRead(reportId, principal);
     const location = await this.locations.findOneBy({ reportId });
     if (!location) {
-      throw new NotFoundException('El reporte no tiene ubicación registrada');
+      throw new NotFoundException('El reporte no tiene ubicacion registrada');
     }
     return location;
   }
@@ -80,7 +80,7 @@ export class LocationsService {
 
     const location = await this.locations.findOneBy({ reportId });
     if (!location) {
-      throw new NotFoundException('El reporte no tiene ubicación registrada');
+      throw new NotFoundException('El reporte no tiene ubicacion registrada');
     }
 
     const updated = { ...location, ...input };
@@ -96,7 +96,7 @@ export class LocationsService {
   }): void {
     if (!input.address?.trim() && !input.neighborhood?.trim()) {
       throw new BadRequestException(
-        'La dirección o el barrio son obligatorios',
+        'La direccion o el barrio son obligatorios',
       );
     }
     if ((input.latitude == null) !== (input.longitude == null)) {
