@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
 import { AddLocationsAndEvidences1760000000000 } from './database/migrations/1760000000000-AddLocationsAndEvidences';
 import { Evidence } from './evidences/evidence.entity';
 import { EvidencesModule } from './evidences/evidences.module';
@@ -30,6 +31,7 @@ const databaseOptions: TypeOrmModuleOptions =
   imports: [
     TypeOrmModule.forRoot(databaseOptions),
     UsersModule,
+    AuthModule,
     LocationsModule,
     EvidencesModule,
   ],

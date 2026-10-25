@@ -4,8 +4,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  if (process.env.NODE_ENV !== 'test' && !process.env.DATABASE_URL) {
-    throw new Error('Define DATABASE_URL para iniciar Urbania');
+  if (process.env.NODE_ENV !== 'test') {
+    for (const name of ['DATABASE_URL', 'JWT_SECRET']) {
+      if (!process.env[name]) {
+        throw new Error(`Define ${name} para iniciar Urbania`);
+      }
+    }
   }
 
   const app = await NestFactory.create(AppModule);
