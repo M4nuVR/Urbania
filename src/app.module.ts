@@ -8,6 +8,8 @@ import { Evidence } from './evidences/evidence.entity';
 import { EvidencesModule } from './evidences/evidences.module';
 import { Location } from './locations/location.entity';
 import { LocationsModule } from './locations/locations.module';
+import { Report } from './reports/report.entity';
+import { ReportsModule } from './reports/reports.module';
 import { User } from './users/user.entity';
 import { UsersModule } from './users/users.module';
 
@@ -16,13 +18,13 @@ const databaseOptions: TypeOrmModuleOptions =
     ? {
         type: 'sqljs',
         autoSave: false,
-        entities: [User, Location, Evidence],
+        entities: [User, Report, Location, Evidence],
         synchronize: true,
       }
     : {
         type: 'postgres',
         url: process.env.DATABASE_URL ?? '',
-        entities: [User, Location, Evidence],
+        entities: [User, Report, Location, Evidence],
         migrations: [AddLocationsAndEvidences1760000000000],
         synchronize: false,
       };
@@ -32,6 +34,7 @@ const databaseOptions: TypeOrmModuleOptions =
     TypeOrmModule.forRoot(databaseOptions),
     UsersModule,
     AuthModule,
+    ReportsModule,
     LocationsModule,
     EvidencesModule,
   ],
