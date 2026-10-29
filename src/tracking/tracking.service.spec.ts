@@ -3,12 +3,12 @@ import { DataSource, Repository } from 'typeorm';
 import { Assignment } from '../assignments/assignment.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { Report, ReportStatus } from '../reports/report.entity';
-import { Role } from '../users/user.entity';
+import { UserRole } from '../users/user.entity';
 import { Tracking } from './tracking.entity';
 import { TrackingService } from './tracking.service';
 
 const REPORT_ID = '11111111-1111-4111-8111-111111111111';
-const AUTHORITY = { id: 'auth-1', roles: [Role.AUTHORITY] };
+const AUTHORITY = { id: 'auth-1', roles: [UserRole.AUTHORITY] };
 
 function setup(report: unknown, affected = 1) {
   const manager = {
@@ -37,7 +37,7 @@ const reportInProgress = {
   id: REPORT_ID,
   title: 'Luminaria dañada',
   status: ReportStatus.IN_PROGRESS,
-  citizenId: 'cit-1',
+  ownerId: 'cit-1',
 };
 
 const resolve = (service: TrackingService, observation?: string) =>
@@ -81,7 +81,7 @@ describe('TrackingService.changeStatus', () => {
     await expect(
       service.changeStatus(
         REPORT_ID,
-        { newStatus: ReportStatus.UNDER_REVIEW },
+        { newStatus: ReportStatus.IN_PROGRESS },
         AUTHORITY,
       ),
     ).rejects.toThrow(NotFoundException);

@@ -8,6 +8,7 @@ import {
   ManyToOne,
   PrimaryColumn,
 } from 'typeorm';
+import { TIMESTAMPTZ } from '../database/column-types';
 import { ReportStatus } from '../reports/report.entity';
 import { User } from '../users/user.entity';
 
@@ -41,7 +42,7 @@ export class Tracking {
   observation: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn({ type: TIMESTAMPTZ })
   createdAt: Date;
 
   @ApiPropertyOptional({ type: () => User })

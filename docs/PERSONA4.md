@@ -1,114 +1,101 @@
 # Persona 4 — Atención, seguimiento y notificaciones
 
-Implementa `AssignmentsModule`, `TrackingModule` y `NotificationsModule` sobre Prisma + PostgreSQL.
+Implementa `AssignmentsModule`, `TrackingModule` y `NotificationsModule` con TypeORM + PostgreSQL.
 
 ## Estructura
 
 ```
 src/
-├── common/auth/            Contrato de autenticación (TEMPORAL hasta Persona 1)
-│   ├── auth-user.ts          { id, role } del usuario autenticado
-│   ├── auth.guard.ts         Respeta request.user; en desarrollo acepta x-user-id
-│   ├── current-user.decorator.ts
-│   ├── roles.decorator.ts
-│   └── roles.guard.ts
-├── notifications/          Notificaciones internas (sin correo ni SMS)
+├── common/auth/
+│   ├── roles.ts            @Roles() y hasRole()
+│   └── roles.guard.ts      Exige rol; corre después del AuthGuard JWT global (Persona 1)
 ├── assignments/            Asignación de autoridad + ReportAccessService
-└── tracking/               Cambio de estado transaccional e historial
-    └── status-transitions.ts  Reglas de transición (función pura)
+├── tracking/               Cambio de estado transaccional e historial
+│   └── status-transitions.ts  Reglas de transición (función pura)
+├── notifications/          Notificaciones internas (sin correo ni SMS)
+└── database/
+    ├── migrations/1761000000000-AddAssignmentsTrackingNotifications.ts
+    └── seed-dev.ts         Usuarios ADMIN / AUTHORITY / CITIZEN de demo
 ```
 
 Dependencias sin ciclos: `Tracking → Assignments → Notifications`.
 
 ## Endpoints
 
+Todos requieren `Authorization: Bearer <token>` (login de Persona 1).
+
 | Método y ruta | Quién | Respuestas de error |
 |---|---|---|
-| `POST /reports/:id/assign` `{ authorityId }` | ADMIN | 404 reporte/usuario · 422 no es AUTHORITY · 409 resuelto o ya asignado |
-| `GET /reports/:id/assignment` | ADMIN, ciudadano dueño, autoridad asignada | 404 sin asignación · 403 |
-| `PATCH /reports/:id/status` `{ newStatus, observation? }` | ADMIN o autoridad asignada | 403 ciudadano/autoridad ajena · 409 salto, mismo estado, resuelto, sin asignación, concurrencia · 400 resolver sin observación |
-| `GET /reports/:id/tracking` | ADMIN, ciudadano dueño, autoridad asignada | 404 · 403 |
+| `POST /reports/:id/assign` `{ authorityId }` | ADMIN | 404 reporte/usuario · 422 no es AUTHORITY · 409 final o ya asignado |
+| `GET /reports/:id/assignment` | ADMIN, dueño, autoridad asignada | 404 sin asignación · 403 |
+| `PATCH /reports/:id/status` `{ newStatus, observation? }` | ADMIN o autoridad asignada | 403 · 409 transición inválida, sin asignación, concurrencia · 400 sin observación |
+| `GET /reports/:id/tracking` | ADMIN, dueño, autoridad asignada | 404 · 403 |
 | `GET /users/me/notifications?page&limit&unreadOnly` | Cualquier usuario autenticado | 401 |
 | `PATCH /notifications/:id/read` | Destinatario | 404 si no existe o es ajena |
 
-Swagger: `http://localhost:3000/docs`
+`PATCH /reports/:id/status` es la **única** ruta que cambia el estado (antes estaba en `ReportsService`).
 
-## Reglas implementadas
+## Reglas de estado
+
+Se usan los estados de Persona 2.
 
 | Actual | Siguiente | Regla |
 |---|---|---|
-| `REPORTED` | `UNDER_REVIEW` | Autoridad asignada o administrador |
-| `UNDER_REVIEW` | `IN_PROGRESS` | Autoridad asignada o administrador; debe existir asignación |
-| `IN_PROGRESS` | `RESOLVED` | Autoridad asignada o administrador; observación obligatoria |
-| `RESOLVED` | — | Sin cambios |
+| `REPORTED` | `IN_PROGRESS` | Debe existir asignación |
+| `REPORTED` | `REJECTED` | Observación obligatoria |
+| `IN_PROGRESS` | `RESOLVED` | Observación obligatoria |
+| `IN_PROGRESS` | `REJECTED` | Observación obligatoria |
+| `RESOLVED`, `REJECTED` | — | Finales |
 
-Decisiones tomadas (revisar con el equipo):
-- **Asignar no cambia el estado.** Después de asignar, el estado se mueve con `PATCH /status`.
-- **Al asignar se notifica** a la autoridad y al ciudadano (`type: ASSIGNED`). Cada cambio de estado notifica al ciudadano dueño (`STATUS_CHANGED`).
-- **Sin reasignación** en el MVP (`report_id` único). Dos asignaciones simultáneas → 409.
-- **Concurrencia:** `updateMany` condicionado al estado leído; si no afecta filas → 409 y rollback.
-- **Ubicación obligatoria antes de `IN_PROGRESS`:** pendiente. Cuando Persona 3 tenga `Location` en Prisma, se agrega en `status-transitions.ts`.
+Siempre: solo ADMIN o la autoridad asignada; el ciudadano nunca.
 
-## Puesta en marcha con PostgreSQL
+Decisiones (revisar con el equipo):
+- **Nuevo rol `AUTHORITY`** en `UserRole` (la migración actualiza `CK_users_role`). El registro público sigue creando solo ciudadanos; los ADMIN y AUTHORITY se crean con el seed o actualizando el rol en la base.
+- **Asignar no cambia el estado.** Notifica a la autoridad y al dueño (`ASSIGNED`); cada cambio de estado notifica al dueño (`STATUS_CHANGED`).
+- **Sin reasignación** en el MVP (`reportId` único). Dos asignaciones simultáneas → 409.
+- **Concurrencia:** `UPDATE ... WHERE status = <leído>`; si no afecta filas → 409 y rollback.
 
-1. En `.env`: `DATABASE_URL` real y `DEV_AUTH=true` (ver `.env.example`).
-2. `npm install`
-3. `npm run prisma:migrate` — aplica `20261014000000_init`. Si Prisma propone una migración nueva, el schema y la migración no coinciden; revisar antes de subir.
-4. Datos de demo: `npx prisma db execute --file prisma/seed-dev.sql`
-5. `npm run start:dev` y abrir `http://localhost:3000/docs`
+## Puesta en marcha
 
-### Probar el flujo (con DEV_AUTH)
-
-Usuarios del seed (cabecera `x-user-id`):
-
-| Rol | UUID |
-|---|---|
-| ADMIN | `aaaaaaaa-0000-4000-8000-000000000001` |
-| AUTHORITY | `aaaaaaaa-0000-4000-8000-000000000002` |
-| CITIZEN | `aaaaaaaa-0000-4000-8000-000000000003` |
-
-Reporte de demo: `bbbbbbbb-0000-4000-8000-000000000001`
-
-```bash
-R=bbbbbbbb-0000-4000-8000-000000000001
-ADMIN=aaaaaaaa-0000-4000-8000-000000000001
-AUTH=aaaaaaaa-0000-4000-8000-000000000002
-CIT=aaaaaaaa-0000-4000-8000-000000000003
-API=http://localhost:3000
-
-curl -X POST  $API/reports/$R/assign -H "x-user-id: $ADMIN" -H "Content-Type: application/json" -d "{\"authorityId\":\"$AUTH\"}"
-curl -X PATCH $API/reports/$R/status -H "x-user-id: $AUTH"  -H "Content-Type: application/json" -d '{"newStatus":"UNDER_REVIEW"}'
-curl -X PATCH $API/reports/$R/status -H "x-user-id: $AUTH"  -H "Content-Type: application/json" -d '{"newStatus":"IN_PROGRESS"}'
-curl -X PATCH $API/reports/$R/status -H "x-user-id: $AUTH"  -H "Content-Type: application/json" -d '{"newStatus":"RESOLVED","observation":"Luminaria reemplazada"}'
-curl $API/reports/$R/tracking      -H "x-user-id: $CIT"
-curl $API/users/me/notifications   -H "x-user-id: $CIT"
+```powershell
+$env:DATABASE_URL = 'postgresql://usuario:clave@localhost:5432/urbania'
+$env:JWT_SECRET = 'un-secreto-largo'
+npm install
+npm run migration:run
+npm run seed:dev        # admin@, autoridad@, ciudadano@urbania.dev — contraseña: urbania-demo
+npm run start:dev       # http://localhost:3000/docs
 ```
 
-## Integración con el resto del equipo
+### Probar el flujo
 
-**Persona 1 (usuarios y JWT)**
-- Su guard JWT debe dejar `request.user = { id | sub, role }`. Con eso `AuthGuard` deja pasar sin más.
-- Para integrar: reemplazar el cuerpo de `src/common/auth/auth.guard.ts` por la verificación JWT, o cambiar `AuthGuard` en los controladores por el guard que exporte Persona 1. Después, eliminar `DEV_AUTH`.
-- Si definen `GET /users/:id` con `ParseUUIDPipe`, comprobar que `/users/me/notifications` siga resolviendo a este módulo.
+```bash
+API=http://localhost:3000
+R=bbbbbbbb-0000-4000-8000-000000000001        # reporte del seed
+AUTH_ID=aaaaaaaa-0000-4000-8000-000000000002  # autoridad del seed
+login() { curl -s $API/auth/login -H "Content-Type: application/json" \
+  -d "{\"email\":\"$1\",\"password\":\"urbania-demo\"}" | sed 's/.*"accessToken":"\([^"]*\)".*/\1/'; }
+ADMIN=$(login admin@urbania.dev); AUTH=$(login autoridad@urbania.dev); CIT=$(login ciudadano@urbania.dev)
+
+curl -X POST  $API/reports/$R/assign -H "Authorization: Bearer $ADMIN" -H "Content-Type: application/json" -d "{\"authorityId\":\"$AUTH_ID\"}"
+curl -X PATCH $API/reports/$R/status -H "Authorization: Bearer $AUTH"  -H "Content-Type: application/json" -d '{"newStatus":"IN_PROGRESS"}'
+curl -X PATCH $API/reports/$R/status -H "Authorization: Bearer $AUTH"  -H "Content-Type: application/json" -d '{"newStatus":"RESOLVED","observation":"Luminaria reemplazada"}'
+curl $API/reports/$R/tracking    -H "Authorization: Bearer $CIT"
+curl $API/users/me/notifications -H "Authorization: Bearer $CIT"
+```
+
+## Pendientes con el resto del equipo
 
 **Persona 2 (reportes)**
-- No exponer otra ruta que cambie `status` (ni aceptar `status` en el DTO de actualización).
-- Entrada inicial del historial: importar `TrackingModule` y, dentro de la transacción que crea el reporte:
-  ```ts
-  await this.prisma.$transaction(async (tx) => {
-    const report = await tx.report.create({ data: { ...dto, citizenId } });
-    await this.tracking.recordInitial(tx, report.id, citizenId);
-    return report;
-  });
-  ```
-- Agregar campos a `Report` con una **migración nueva**, sin recrear `init`.
+- Se quitó `updateStatus` de `ReportsService` y la ruta `PATCH /reports/:id/status` de su controlador: ahora vive en `TrackingModule`.
+- Opcional: registrar la entrada inicial del historial al crear un reporte con `trackingService.recordInitial(manager, report.id, ownerId)` dentro de una transacción.
+- La autoridad asignada aún no puede ver `GET /reports/:id`, ni la ubicación o evidencias, porque `findOne` y `ReportAccessAdapter.canRead` solo permiten dueño o ADMIN. Habría que permitir también a la autoridad asignada (`Assignment.authorityId`).
 
-**Persona 3 (ubicación y evidencias)**
-- Para la regla de ubicación obligatoria, `Location` debe existir en `schema.prisma`.
+**Persona 3 (ubicación)**
+- Regla opcional "ubicación obligatoria antes de `IN_PROGRESS`": se agrega en `status-transitions.ts` cuando el equipo lo decida.
 
 ## Pruebas
 
 ```bash
 npm test          # reglas de transición, asignación, cambio de estado, notificaciones
-npm run test:e2e  # guards y validación HTTP (PrismaService simulado, no necesita BD)
+npm run test:e2e  # flujo completo con JWT real sobre sql.js en memoria
 ```

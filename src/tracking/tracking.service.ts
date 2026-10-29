@@ -37,7 +37,7 @@ export class TrackingService {
     return this.dataSource.transaction(async (manager) => {
       const report = await manager.findOne(Report, {
         where: { id: reportId },
-        select: { id: true, title: true, status: true, citizenId: true },
+        select: { id: true, title: true, status: true, ownerId: true },
       });
       if (!report) throw new NotFoundException('Reporte no encontrado');
 
@@ -80,7 +80,7 @@ export class TrackingService {
 
       await this.notifications.create(
         {
-          userId: report.citizenId,
+          userId: report.ownerId,
           reportId,
           type: NotificationType.STATUS_CHANGED,
           message: `Tu reporte "${report.title}" pasó a ${STATUS_LABEL[dto.newStatus]}.`,
@@ -105,22 +105,22 @@ export class TrackingService {
         changedBy: true,
         observation: true,
         createdAt: true,
-        user: { id: true, name: true, role: true },
+        user: { id: true, fullName: true, role: true },
       },
     });
   }
 
   // Para Persona 2: llamar dentro de la transacción que crea el reporte para
   // registrar la entrada inicial (previousStatus nulo).
-  // Ejemplo: await trackingService.recordInitial(manager, report.id, citizenId);
-  recordInitial(manager: EntityManager, reportId: string, citizenId: string) {
+  // Ejemplo: await trackingService.recordInitial(manager, report.id, ownerId);
+  recordInitial(manager: EntityManager, reportId: string, ownerId: string) {
     return manager.save(
       manager.create(Tracking, {
         id: randomUUID(),
         reportId,
         previousStatus: null,
         newStatus: ReportStatus.REPORTED,
-        changedBy: citizenId,
+        changedBy: ownerId,
       }),
     );
   }

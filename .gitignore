@@ -1,16 +1,20 @@
-# Dependencias y compilación
+# dependencias
 node_modules/
+
+# build
 dist/
 *.tsbuildinfo
+
+# tests
 coverage/
 
-# Variables de entorno (nunca subir credenciales)
+# entorno
 .env
 .env.*
+!.env.example
 
-# Editores y SO
+# sistema / editor
+.DS_Store
 .vscode/
 .idea/
-.DS_Store
-Thumbs.db
 *.log

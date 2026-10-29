@@ -8,6 +8,7 @@ import {
   ManyToOne,
   PrimaryColumn,
 } from 'typeorm';
+import { TIMESTAMPTZ } from '../database/column-types';
 import { User } from '../users/user.entity';
 
 // MVP: una asignación vigente por reporte (reportId único).
@@ -32,7 +33,7 @@ export class Assignment {
   assignedBy: string;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn({ type: TIMESTAMPTZ })
   assignedAt: Date;
 
   @ApiPropertyOptional({ type: () => User })

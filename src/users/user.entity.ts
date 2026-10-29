@@ -3,45 +3,40 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryColumn,
-  UpdateDateColumn,
 } from 'typeorm';
 
-export enum Role {
+export enum UserRole {
   CITIZEN = 'CITIZEN',
+  // Entidad responsable de atender reportes asignados (Persona 4)
   AUTHORITY = 'AUTHORITY',
   ADMIN = 'ADMIN',
 }
 
-// Base mínima para que Persona 4 pueda validar roles y relacionar asignaciones.
-// Persona 1 es dueña de esta entidad: completa los campos y el registro/login.
 @Entity({ name: 'users' })
+@Index('uq_users_email', ['email'], { unique: true })
 export class User {
   @ApiProperty({ format: 'uuid' })
   @PrimaryColumn('uuid')
   id: string;
 
-  @ApiProperty({ example: 'Autoridad Alumbrado' })
-  @Column({ type: 'varchar', length: 120 })
-  name: string;
-
-  @ApiProperty({ example: 'autoridad@urbania.dev' })
-  @Column({ type: 'varchar', length: 255, unique: true })
+  @ApiProperty({ example: 'ciudadano@example.org' })
+  @Column({ type: 'varchar', length: 255 })
   email: string;
 
-  // select: false → nunca sale en consultas ni relaciones salvo que se pida.
+  @ApiProperty({ example: 'Ana Perez' })
+  @Column({ type: 'varchar', length: 120 })
+  fullName: string;
+
   @Column({ type: 'varchar', length: 255, select: false })
   passwordHash: string;
 
-  @ApiProperty({ enum: Role })
-  @Column({ type: 'varchar', length: 16, default: Role.CITIZEN })
-  role: Role;
+  @ApiProperty({ enum: UserRole })
+  @Column({ type: 'varchar', length: 16, default: UserRole.CITIZEN })
+  role: UserRole;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
-
-  @ApiProperty({ type: String, format: 'date-time' })
-  @UpdateDateColumn({ type: 'timestamptz' })
-  updatedAt: Date;
 }

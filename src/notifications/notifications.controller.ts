@@ -5,7 +5,6 @@ import {
   ParseUUIDPipe,
   Patch,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -14,7 +13,6 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { AuthGuard } from '../common/auth/auth.guard';
 import { CurrentPrincipal } from '../common/current-principal.decorator';
 import type { AuthenticatedPrincipal } from '../common/report-access';
 import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
@@ -23,7 +21,6 @@ import { NotificationsService } from './notifications.service';
 
 @ApiTags('Notificaciones')
 @ApiBearerAuth()
-@UseGuards(AuthGuard)
 @Controller()
 export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}

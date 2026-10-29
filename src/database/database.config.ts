@@ -5,13 +5,12 @@ import { Notification } from '../notifications/notification.entity';
 import { Report } from '../reports/report.entity';
 import { Tracking } from '../tracking/tracking.entity';
 import { User } from '../users/user.entity';
-import { CreateUsersAndReports1759000000000 } from './migrations/1759000000000-CreateUsersAndReports';
+import { CreateUsersAndReports1759900000000 } from './migrations/1759900000000-CreateUsersAndReports';
 import { AddLocationsAndEvidences1760000000000 } from './migrations/1760000000000-AddLocationsAndEvidences';
 import { AddAssignmentsTrackingNotifications1761000000000 } from './migrations/1761000000000-AddAssignmentsTrackingNotifications';
 
-// Lista única que usan AppModule y el CLI de migraciones (data-source.ts).
-// Al crear una entidad o migración nueva, agregarla aquí.
-export const ENTITIES = [
+// Fuente unica para la app y para el CLI de migraciones
+export const entities = [
   User,
   Report,
   Location,
@@ -21,8 +20,8 @@ export const ENTITIES = [
   Notification,
 ];
 
-export const MIGRATIONS = [
-  CreateUsersAndReports1759000000000,
+export const migrations = [
+  CreateUsersAndReports1759900000000,
   AddLocationsAndEvidences1760000000000,
   AddAssignmentsTrackingNotifications1761000000000,
 ];

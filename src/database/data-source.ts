@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import { ENTITIES, MIGRATIONS } from './database.config';
+import { entities, migrations } from './database.config';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('Define DATABASE_URL para ejecutar migraciones');
@@ -9,7 +9,7 @@ if (!process.env.DATABASE_URL) {
 export default new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  entities: ENTITIES,
-  migrations: MIGRATIONS,
+  entities,
+  migrations,
   synchronize: false,
 });

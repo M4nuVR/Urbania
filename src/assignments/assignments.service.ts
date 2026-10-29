@@ -9,8 +9,9 @@ import { randomUUID } from 'node:crypto';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
 import { NotificationType } from '../notifications/notification.entity';
 import { NotificationsService } from '../notifications/notifications.service';
-import { Report, ReportStatus } from '../reports/report.entity';
-import { Role, User } from '../users/user.entity';
+import { Report } from '../reports/report.entity';
+import { FINAL_STATUSES } from '../tracking/status-transitions';
+import { UserRole, User } from '../users/user.entity';
 import { Assignment } from './assignment.entity';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
 
@@ -24,19 +25,19 @@ export class AssignmentsService {
   ) {}
 
   // MVP: el administrador asigna una sola vez; la reasignación queda como mejora.
-  // Asignar no cambia el estado del reporte: la transición REPORTED → UNDER_REVIEW
+  // Asignar no cambia el estado del reporte: la transición REPORTED → IN_PROGRESS
   // se hace después por PATCH /reports/:id/status.
   async assign(reportId: string, dto: CreateAssignmentDto, adminId: string) {
     try {
       return await this.dataSource.transaction(async (manager) => {
         const report = await manager.findOne(Report, {
           where: { id: reportId },
-          select: { id: true, title: true, status: true, citizenId: true },
+          select: { id: true, title: true, status: true, ownerId: true },
         });
         if (!report) throw new NotFoundException('Reporte no encontrado');
-        if (report.status === ReportStatus.RESOLVED) {
+        if (FINAL_STATUSES.includes(report.status)) {
           throw new ConflictException(
-            'No se puede asignar un reporte resuelto',
+            'No se puede asignar un reporte resuelto o rechazado',
           );
         }
         if (await manager.existsBy(Assignment, { reportId })) {
@@ -52,7 +53,7 @@ export class AssignmentsService {
         if (!authority) {
           throw new NotFoundException('Usuario responsable no encontrado');
         }
-        if (authority.role !== Role.AUTHORITY) {
+        if (authority.role !== UserRole.AUTHORITY) {
           throw new UnprocessableEntityException(
             'El usuario responsable debe tener rol AUTHORITY',
           );
@@ -78,7 +79,7 @@ export class AssignmentsService {
         );
         await this.notifications.create(
           {
-            userId: report.citizenId,
+            userId: report.ownerId,
             reportId,
             type: NotificationType.ASSIGNED,
             message: `Tu reporte "${report.title}" fue asignado a una autoridad.`,

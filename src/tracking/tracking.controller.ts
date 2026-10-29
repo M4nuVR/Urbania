@@ -18,19 +18,18 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ReportAccessService } from '../assignments/report-access.service';
-import { AuthGuard } from '../common/auth/auth.guard';
 import { Roles } from '../common/auth/roles';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentPrincipal } from '../common/current-principal.decorator';
 import type { AuthenticatedPrincipal } from '../common/report-access';
-import { Role } from '../users/user.entity';
+import { UserRole } from '../users/user.entity';
 import { ChangeStatusDto } from './dto/change-status.dto';
 import { Tracking } from './tracking.entity';
 import { TrackingService } from './tracking.service';
 
 @ApiTags('Seguimiento')
 @ApiBearerAuth()
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Controller('reports/:id')
 export class TrackingController {
   constructor(
@@ -40,7 +39,7 @@ export class TrackingController {
 
   // Ruta única para cambiar el estado: Persona 2 no debe exponer otra.
   @Patch('status')
-  @Roles(Role.ADMIN, Role.AUTHORITY)
+  @Roles(UserRole.ADMIN, UserRole.AUTHORITY)
   @ApiOperation({ summary: 'Cambiar el estado del reporte' })
   @ApiOkResponse({ type: Tracking })
   @ApiNotFoundResponse({ description: 'Reporte inexistente' })

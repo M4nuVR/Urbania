@@ -1,11 +1,19 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-const STATUSES = `'REPORTED', 'UNDER_REVIEW', 'IN_PROGRESS', 'RESOLVED'`;
+const STATUSES = `'REPORTED', 'IN_PROGRESS', 'RESOLVED', 'REJECTED'`;
 
 export class AddAssignmentsTrackingNotifications1761000000000 implements MigrationInterface {
   name = 'AddAssignmentsTrackingNotifications1761000000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {
+    // Nuevo rol AUTHORITY: usuario que atiende los reportes asignados
+    await queryRunner.query(
+      'ALTER TABLE "users" DROP CONSTRAINT "CK_users_role"',
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" ADD CONSTRAINT "CK_users_role" CHECK ("role" IN ('CITIZEN', 'AUTHORITY', 'ADMIN'))`,
+    );
+
     await queryRunner.query(`
       CREATE TABLE "assignments" (
         "id" uuid NOT NULL,
@@ -79,5 +87,12 @@ export class AddAssignmentsTrackingNotifications1761000000000 implements Migrati
     await queryRunner.query('DROP TABLE "notifications"');
     await queryRunner.query('DROP TABLE "tracking"');
     await queryRunner.query('DROP TABLE "assignments"');
+    // Falla si quedan usuarios AUTHORITY: hay que reasignarles otro rol antes
+    await queryRunner.query(
+      'ALTER TABLE "users" DROP CONSTRAINT "CK_users_role"',
+    );
+    await queryRunner.query(
+      `ALTER TABLE "users" ADD CONSTRAINT "CK_users_role" CHECK ("role" IN ('CITIZEN', 'ADMIN'))`,
+    );
   }
 }

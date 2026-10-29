@@ -6,6 +6,7 @@ import {
   Index,
   PrimaryColumn,
 } from 'typeorm';
+import { TIMESTAMPTZ } from '../database/column-types';
 
 export enum NotificationType {
   ASSIGNED = 'ASSIGNED',
@@ -36,10 +37,10 @@ export class Notification {
   message: string;
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
-  @Column({ type: 'timestamptz', nullable: true })
+  @Column({ type: TIMESTAMPTZ, nullable: true })
   readAt: Date | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn({ type: TIMESTAMPTZ })
   createdAt: Date;
 }

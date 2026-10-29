@@ -18,7 +18,7 @@ const openReport = {
   id: REPORT_ID,
   title: 'Hueco en la vía',
   status: 'REPORTED',
-  citizenId: 'cit-1',
+  ownerId: 'cit-1',
 };
 
 function setup(

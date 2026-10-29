@@ -10,43 +10,56 @@ import {
 
 export enum ReportStatus {
   REPORTED = 'REPORTED',
-  UNDER_REVIEW = 'UNDER_REVIEW',
   IN_PROGRESS = 'IN_PROGRESS',
   RESOLVED = 'RESOLVED',
+  REJECTED = 'REJECTED',
 }
 
-// Base mínima para que Persona 4 cambie el estado y Persona 3 tenga a qué
-// referenciar. Persona 2 es dueña de esta entidad: agrega sus campos con una
-// migración nueva y no expone otra ruta que modifique `status`.
+export enum ReportCategory {
+  ROADS = 'ROADS',
+  LIGHTING = 'LIGHTING',
+  WASTE = 'WASTE',
+  PUBLIC_SPACE = 'PUBLIC_SPACE',
+  SECURITY = 'SECURITY',
+  OTHER = 'OTHER',
+}
+
 @Entity({ name: 'reports' })
-@Index('IDX_reports_citizen_id', ['citizenId'])
-@Index('IDX_reports_status', ['status'])
+@Index('idx_reports_owner_id', ['ownerId'])
+@Index('idx_reports_status', ['status'])
 export class Report {
   @ApiProperty({ format: 'uuid' })
   @PrimaryColumn('uuid')
   id: string;
 
-  @ApiProperty({ example: 'Luminaria dañada' })
-  @Column({ type: 'varchar', length: 200 })
+  @ApiProperty({ format: 'uuid' })
+  @Column({ type: 'uuid' })
+  ownerId: string;
+
+  @ApiProperty({ example: 'Bache en la calle 10', maxLength: 150 })
+  @Column({ type: 'varchar', length: 150 })
   title: string;
 
-  @ApiProperty()
-  @Column({ type: 'text' })
+  @ApiProperty({
+    example: 'Hay un bache profundo frente al parque',
+    maxLength: 2000,
+  })
+  @Column({ type: 'varchar', length: 2000 })
   description: string;
+
+  @ApiProperty({ enum: ReportCategory })
+  @Column({ type: 'varchar', length: 32 })
+  category: ReportCategory;
 
   @ApiProperty({ enum: ReportStatus })
   @Column({ type: 'varchar', length: 16, default: ReportStatus.REPORTED })
   status: ReportStatus;
 
-  @ApiProperty({ format: 'uuid' })
-  @Column({ type: 'uuid' })
-  citizenId: string;
-
   @ApiProperty({ type: String, format: 'date-time' })
-  @CreateDateColumn({ type: 'timestamptz' })
+  @CreateDateColumn()
   createdAt: Date;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  @UpdateDateColumn({ type: 'timestamptz' })
+  @UpdateDateColumn()
   updatedAt: Date;
 }

@@ -4,13 +4,13 @@ import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
 import { ReportStatus } from '../../reports/report.entity';
 
 export class ChangeStatusDto {
-  @ApiProperty({ enum: ReportStatus, example: ReportStatus.UNDER_REVIEW })
+  @ApiProperty({ enum: ReportStatus, example: ReportStatus.IN_PROGRESS })
   @IsEnum(ReportStatus)
   newStatus: ReportStatus;
 
   @ApiPropertyOptional({
     maxLength: 1000,
-    description: 'Obligatoria al pasar a RESOLVED',
+    description: 'Obligatoria al pasar a RESOLVED o REJECTED',
     example: 'Se reparó la luminaria y se verificó su funcionamiento.',
   })
   @IsOptional()

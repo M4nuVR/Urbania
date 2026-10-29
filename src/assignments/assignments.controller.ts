@@ -18,12 +18,11 @@ import {
   ApiTags,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import { AuthGuard } from '../common/auth/auth.guard';
 import { Roles } from '../common/auth/roles';
 import { RolesGuard } from '../common/auth/roles.guard';
 import { CurrentPrincipal } from '../common/current-principal.decorator';
 import type { AuthenticatedPrincipal } from '../common/report-access';
-import { Role } from '../users/user.entity';
+import { UserRole } from '../users/user.entity';
 import { Assignment } from './assignment.entity';
 import { AssignmentsService } from './assignments.service';
 import { CreateAssignmentDto } from './dto/create-assignment.dto';
@@ -31,7 +30,7 @@ import { ReportAccessService } from './report-access.service';
 
 @ApiTags('Asignaciones')
 @ApiBearerAuth()
-@UseGuards(AuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 @Controller('reports/:id')
 export class AssignmentsController {
   constructor(
@@ -40,11 +39,11 @@ export class AssignmentsController {
   ) {}
 
   @Post('assign')
-  @Roles(Role.ADMIN)
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Administrador asigna una autoridad al reporte' })
   @ApiCreatedResponse({ type: Assignment })
   @ApiNotFoundResponse({ description: 'Reporte o usuario inexistente' })
-  @ApiConflictResponse({ description: 'Reporte resuelto o ya asignado' })
+  @ApiConflictResponse({ description: 'Reporte resuelto, rechazado o ya asignado' })
   @ApiUnprocessableEntityResponse({ description: 'El usuario no es AUTHORITY' })
   @ApiForbiddenResponse({ description: 'Solo administradores' })
   assign(
