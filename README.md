@@ -1,40 +1,58 @@
 # Urbania API
 
-API NestJS para reportes urbanos. Esta rama `Khaled` incorpora ubicacion unica por reporte y evidencias mediante URL.
+API NestJS para reportes urbanos: los ciudadanos registran reportes con ubicacion y evidencias, y los administradores gestionan su estado.
 
-## Rama de trabajo
+## Configuracion
 
-```bash
-git checkout -b Khaled
-```
-
-En este workspace la rama `Khaled` ya existia, por eso el trabajo quedo aplicado sobre esa rama.
-
-## Configuracion PostgreSQL
-
-Define `DATABASE_URL` con la conexion PostgreSQL y ejecuta la migracion antes de iniciar:
+Copia `.env.example` y define al menos `DATABASE_URL` y `JWT_SECRET`. Luego ejecuta las migraciones antes de iniciar:
 
 ```powershell
 $env:DATABASE_URL = 'postgresql://usuario:clave@localhost:5432/urbania'
+$env:JWT_SECRET = 'un-secreto-largo'
 npm run migration:run
 npm run start:dev
 ```
 
 La API documentada queda disponible en `/docs`. `synchronize` permanece desactivado en PostgreSQL.
 
-## Contratos de identidad y reportes
+## Autenticacion
 
-Persona 1 debe instalar su guard de autenticacion global y dejar el usuario validado en `request.user.id` o `request.user.sub`, junto con `role` o `roles`. Los controladores fallan con `401` si no hay usuario autenticado.
+Todas las rutas exigen `Authorization: Bearer <token>`, salvo `GET /`, `POST /auth/register` y `POST /auth/login`.
 
-Persona 2 debe registrar el proveedor `REPORT_ACCESS_PORT` (`src/common/report-access.ts`). Su implementacion debe exponer:
+```http
+POST /auth/register   { "email", "fullName", "password" }
+POST /auth/login      { "email", "password" }
+GET  /auth/me
+```
 
-- `findById(reportId)` con `id`, `ownerId` y `status`.
-- `canRead(principal, report)` para validar consultas.
-- `canModify(principal, report)` para validar cambios.
+Los usuarios nuevos son `CITIZEN`. Para crear un `ADMIN`, actualiza la columna `role` en la tabla `users`.
 
-Las modificaciones exigen propietario y estado `REPORTED`. Mientras el proveedor no este registrado, las operaciones responden `503`.
+## Reportes
 
-## Endpoints
+```http
+POST  /reports
+GET   /reports?status=&category=
+GET   /reports/{id}
+PATCH /reports/{id}
+PATCH /reports/{id}/status   (solo ADMIN)
+```
+
+```json
+{
+  "title": "Bache en la calle 10",
+  "description": "Hay un bache profundo frente al parque",
+  "category": "ROADS"
+}
+```
+
+- Categorias: `ROADS`, `LIGHTING`, `WASTE`, `PUBLIC_SPACE`, `SECURITY`, `OTHER`.
+- Un ciudadano solo ve y edita sus reportes; un `ADMIN` ve todos.
+- Solo se edita mientras el estado sea `REPORTED`.
+- Transiciones de estado: `REPORTED -> IN_PROGRESS | REJECTED`, `IN_PROGRESS -> RESOLVED | REJECTED`.
+
+El modulo de reportes registra `REPORT_ACCESS_PORT` (`src/common/report-access.ts`), que usan ubicaciones y evidencias para autorizar: el propietario y `ADMIN` pueden consultar; solo el propietario modifica, y solo en `REPORTED`.
+
+## Ubicacion y evidencias
 
 ```http
 POST   /reports/{id}/location
@@ -45,7 +63,7 @@ GET    /reports/{id}/evidences
 DELETE /evidences/{id}
 ```
 
-## Ubicacion
+### Ubicacion
 
 ```json
 {
@@ -66,7 +84,7 @@ Reglas principales:
 - Se exige `address` o `neighborhood`.
 - Crear o actualizar solo esta permitido si el reporte esta en `REPORTED`.
 
-## Evidencias
+### Evidencias
 
 ```json
 {
