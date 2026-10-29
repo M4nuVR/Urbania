@@ -13,6 +13,8 @@ const databaseOptions: TypeOrmModuleOptions =
   process.env.NODE_ENV === 'test'
     ? {
         type: 'sqljs',
+        // Se pasa explicito porque TypeORM no logra cargarlo bajo jest
+        driver: require('sql.js'),
         autoSave: false,
         entities,
         synchronize: true,
