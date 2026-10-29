@@ -1,0 +1,21 @@
+# Dependencias y compilación
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Variables de entorno (nunca subir credenciales)
+.env
+.env.*
+!.env.example
+
+# Cliente de Prisma generado (se regenera con `npm install` / `npm run prisma:generate`)
+src/generated/
+
+# Editores y SO
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
