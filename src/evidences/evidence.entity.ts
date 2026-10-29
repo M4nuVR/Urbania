@@ -39,6 +39,9 @@ export class Evidence {
   description: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
-  @CreateDateColumn({ type: 'timestamptz' })
+  // sql.js (tests) no soporta timestamptz
+  @CreateDateColumn({
+    type: process.env.NODE_ENV === 'test' ? 'datetime' : 'timestamptz',
+  })
   createdAt: Date;
 }
