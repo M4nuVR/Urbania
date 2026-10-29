@@ -1,61 +1,76 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
-import { Role } from '../generated/prisma/enums.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { TrackingService } from './tracking.service.js';
+import { DataSource, Repository } from 'typeorm';
+import { Assignment } from '../assignments/assignment.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Report, ReportStatus } from '../reports/report.entity';
+import { Role } from '../users/user.entity';
+import { Tracking } from './tracking.entity';
+import { TrackingService } from './tracking.service';
 
 const REPORT_ID = '11111111-1111-4111-8111-111111111111';
-const AUTHORITY = { id: 'auth-1', role: Role.AUTHORITY };
+const AUTHORITY = { id: 'auth-1', roles: [Role.AUTHORITY] };
 
-function setup(report: unknown, updatedCount = 1) {
-  const tx = {
-    report: {
-      findUnique: vi.fn().mockResolvedValue(report),
-      updateMany: vi.fn().mockResolvedValue({ count: updatedCount }),
-    },
-    tracking: { create: vi.fn().mockResolvedValue({ id: 't-1' }) },
-    notification: { create: vi.fn().mockResolvedValue({ id: 'n-1' }) },
+function setup(report: unknown, affected = 1) {
+  const manager = {
+    findOne: jest.fn((entity: unknown) =>
+      Promise.resolve(
+        entity === Assignment ? { authorityId: AUTHORITY.id } : report,
+      ),
+    ),
+    update: jest.fn().mockResolvedValue({ affected }),
+    create: jest.fn((_entity: unknown, value: unknown) => value),
+    save: jest.fn((value) => Promise.resolve(value)),
   };
-  const prisma = {
-    $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
-  } as unknown as PrismaService;
-  const service = new TrackingService(prisma, new NotificationsService(prisma));
-  return { service, tx };
+  const dataSource = {
+    transaction: jest.fn((fn: (m: typeof manager) => unknown) => fn(manager)),
+  };
+  const notifications = { create: jest.fn().mockResolvedValue({}) };
+  const service = new TrackingService(
+    dataSource as unknown as DataSource,
+    {} as Repository<Tracking>,
+    notifications as unknown as NotificationsService,
+  );
+  return { service, manager, notifications };
 }
 
 const reportInProgress = {
+  id: REPORT_ID,
   title: 'Luminaria dañada',
-  status: 'IN_PROGRESS',
+  status: ReportStatus.IN_PROGRESS,
   citizenId: 'cit-1',
-  assignment: { authorityId: AUTHORITY.id },
 };
+
+const resolve = (service: TrackingService, observation?: string) =>
+  service.changeStatus(
+    REPORT_ID,
+    { newStatus: ReportStatus.RESOLVED, observation },
+    AUTHORITY,
+  );
 
 describe('TrackingService.changeStatus', () => {
   it('actualiza condicionado al estado leído, guarda una entrada y notifica al dueño', async () => {
-    const { service, tx } = setup(reportInProgress);
+    const { service, manager, notifications } = setup(reportInProgress);
 
-    await service.changeStatus(
-      REPORT_ID,
-      { newStatus: 'RESOLVED', observation: 'Reparada' },
-      AUTHORITY,
+    await resolve(service, 'Reparada');
+
+    expect(manager.update).toHaveBeenCalledWith(
+      Report,
+      { id: REPORT_ID, status: ReportStatus.IN_PROGRESS },
+      { status: ReportStatus.RESOLVED },
     );
-
-    expect(tx.report.updateMany).toHaveBeenCalledWith({
-      where: { id: REPORT_ID, status: 'IN_PROGRESS' },
-      data: { status: 'RESOLVED' },
-    });
-    expect(tx.tracking.create).toHaveBeenCalledTimes(1);
-    expect(tx.tracking.create).toHaveBeenCalledWith({
-      data: {
+    expect(manager.create).toHaveBeenCalledWith(
+      Tracking,
+      expect.objectContaining({
         reportId: REPORT_ID,
-        previousStatus: 'IN_PROGRESS',
-        newStatus: 'RESOLVED',
+        previousStatus: ReportStatus.IN_PROGRESS,
+        newStatus: ReportStatus.RESOLVED,
         changedBy: AUTHORITY.id,
         observation: 'Reparada',
-      },
-    });
-    expect(tx.notification.create).toHaveBeenCalledTimes(1);
-    expect(tx.notification.create.mock.calls[0][0].data).toMatchObject({
+      }),
+    );
+    expect(manager.save).toHaveBeenCalledTimes(1);
+    expect(notifications.create).toHaveBeenCalledTimes(1);
+    expect(notifications.create.mock.calls[0][0]).toMatchObject({
       userId: 'cit-1',
       type: 'STATUS_CHANGED',
     });
@@ -64,29 +79,27 @@ describe('TrackingService.changeStatus', () => {
   it('responde 404 si el reporte no existe', async () => {
     const { service } = setup(null);
     await expect(
-      service.changeStatus(REPORT_ID, { newStatus: 'UNDER_REVIEW' }, AUTHORITY),
+      service.changeStatus(
+        REPORT_ID,
+        { newStatus: ReportStatus.UNDER_REVIEW },
+        AUTHORITY,
+      ),
     ).rejects.toThrow(NotFoundException);
   });
 
   it('rechaza con 409 si otra petición cambió el estado antes (concurrencia)', async () => {
-    const { service, tx } = setup(reportInProgress, 0);
-    await expect(
-      service.changeStatus(
-        REPORT_ID,
-        { newStatus: 'RESOLVED', observation: 'Reparada' },
-        AUTHORITY,
-      ),
-    ).rejects.toThrow(ConflictException);
-    expect(tx.tracking.create).not.toHaveBeenCalled();
-    expect(tx.notification.create).not.toHaveBeenCalled();
+    const { service, manager, notifications } = setup(reportInProgress, 0);
+    await expect(resolve(service, 'Reparada')).rejects.toThrow(
+      ConflictException,
+    );
+    expect(manager.save).not.toHaveBeenCalled();
+    expect(notifications.create).not.toHaveBeenCalled();
   });
 
   it('no escribe nada si la transición es inválida', async () => {
-    const { service, tx } = setup(reportInProgress);
-    await expect(
-      service.changeStatus(REPORT_ID, { newStatus: 'RESOLVED' }, AUTHORITY),
-    ).rejects.toThrow();
-    expect(tx.report.updateMany).not.toHaveBeenCalled();
-    expect(tx.tracking.create).not.toHaveBeenCalled();
+    const { service, manager } = setup(reportInProgress);
+    await expect(resolve(service)).rejects.toThrow();
+    expect(manager.update).not.toHaveBeenCalled();
+    expect(manager.save).not.toHaveBeenCalled();
   });
 });

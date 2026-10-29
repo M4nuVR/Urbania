@@ -3,30 +3,42 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { AuthUser } from '../common/auth/auth-user.js';
-import { Role } from '../generated/prisma/enums.js';
-import { PrismaService } from '../prisma/prisma.service.js';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { hasRole } from '../common/auth/roles';
+import type { AuthenticatedPrincipal } from '../common/report-access';
+import { Report } from '../reports/report.entity';
+import { Role } from '../users/user.entity';
+import { Assignment } from './assignment.entity';
 
 // "Usuario autorizado" para consultar responsable e historial de un reporte:
 // el administrador, el ciudadano dueño o la autoridad asignada.
 @Injectable()
 export class ReportAccessService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Report)
+    private readonly reports: Repository<Report>,
+    @InjectRepository(Assignment)
+    private readonly assignments: Repository<Assignment>,
+  ) {}
 
-  async assertCanView(reportId: string, user: AuthUser): Promise<void> {
-    const report = await this.prisma.report.findUnique({
+  async assertCanView(
+    reportId: string,
+    principal: AuthenticatedPrincipal,
+  ): Promise<void> {
+    const report = await this.reports.findOne({
       where: { id: reportId },
-      select: {
-        citizenId: true,
-        assignment: { select: { authorityId: true } },
-      },
+      select: { id: true, citizenId: true },
     });
     if (!report) throw new NotFoundException('Reporte no encontrado');
 
     const allowed =
-      user.role === Role.ADMIN ||
-      report.citizenId === user.id ||
-      report.assignment?.authorityId === user.id;
+      hasRole(principal, Role.ADMIN) ||
+      report.citizenId === principal.id ||
+      (await this.assignments.existsBy({
+        reportId,
+        authorityId: principal.id,
+      }));
     if (!allowed) {
       throw new ForbiddenException('No tienes acceso a este reporte');
     }

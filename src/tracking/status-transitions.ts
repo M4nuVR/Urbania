@@ -3,8 +3,10 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import type { AuthUser } from '../common/auth/auth-user.js';
-import { ReportStatus, Role } from '../generated/prisma/enums.js';
+import { hasRole } from '../common/auth/roles';
+import type { AuthenticatedPrincipal } from '../common/report-access';
+import { ReportStatus } from '../reports/report.entity';
+import { Role } from '../users/user.entity';
 
 // Única transición permitida desde cada estado. RESOLVED es final en el MVP.
 export const NEXT_STATUS: Record<ReportStatus, ReportStatus | null> = {
@@ -24,7 +26,7 @@ export const STATUS_LABEL: Record<ReportStatus, string> = {
 export interface TransitionInput {
   current: ReportStatus;
   next: ReportStatus;
-  actor: AuthUser;
+  actor: AuthenticatedPrincipal;
   assignedAuthorityId: string | null;
   observation?: string | null;
 }
@@ -32,13 +34,14 @@ export interface TransitionInput {
 // Lanza la excepción HTTP correspondiente si el cambio no está permitido.
 export function assertTransitionAllowed(input: TransitionInput): void {
   const { current, next, actor, assignedAuthorityId } = input;
+  const isAdmin = hasRole(actor, Role.ADMIN);
 
-  if (actor.role !== Role.ADMIN && actor.role !== Role.AUTHORITY) {
+  if (!isAdmin && !hasRole(actor, Role.AUTHORITY)) {
     throw new ForbiddenException(
       'Solo la autoridad asignada o un administrador pueden cambiar el estado',
     );
   }
-  if (actor.role === Role.AUTHORITY && assignedAuthorityId !== actor.id) {
+  if (!isAdmin && assignedAuthorityId !== actor.id) {
     throw new ForbiddenException(
       'No eres la autoridad asignada a este reporte',
     );

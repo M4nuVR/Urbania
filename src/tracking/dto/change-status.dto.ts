@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
-import { ReportStatus } from '../../generated/prisma/enums.js';
+import { ReportStatus } from '../../reports/report.entity';
 
 export class ChangeStatusDto {
   @ApiProperty({ enum: ReportStatus, example: ReportStatus.UNDER_REVIEW })

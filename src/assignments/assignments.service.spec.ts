@@ -3,41 +3,50 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma } from '../generated/prisma/client.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { AssignmentsService } from './assignments.service.js';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Report } from '../reports/report.entity';
+import { User } from '../users/user.entity';
+import { Assignment } from './assignment.entity';
+import { AssignmentsService } from './assignments.service';
 
 const REPORT_ID = '11111111-1111-4111-8111-111111111111';
 const AUTHORITY_ID = '22222222-2222-4222-8222-222222222222';
 const ADMIN_ID = '33333333-3333-4333-8333-333333333333';
 
 const openReport = {
+  id: REPORT_ID,
   title: 'Hueco en la vía',
   status: 'REPORTED',
   citizenId: 'cit-1',
-  assignment: null,
 };
 
-function setup(report: unknown, authority: unknown, createError?: Error) {
-  const tx = {
-    report: { findUnique: vi.fn().mockResolvedValue(report) },
-    user: { findUnique: vi.fn().mockResolvedValue(authority) },
-    assignment: {
-      create: createError
-        ? vi.fn().mockRejectedValue(createError)
-        : vi.fn().mockResolvedValue({ id: 'a-1' }),
-    },
-    notification: { create: vi.fn().mockResolvedValue({}) },
+function setup(
+  report: unknown,
+  authority: unknown,
+  options: { alreadyAssigned?: boolean; saveError?: Error } = {},
+) {
+  const manager = {
+    findOne: jest.fn((entity: unknown) =>
+      Promise.resolve(entity === Report ? report : authority),
+    ),
+    existsBy: jest.fn().mockResolvedValue(options.alreadyAssigned ?? false),
+    create: jest.fn((_entity: unknown, value: unknown) => value),
+    save: options.saveError
+      ? jest.fn().mockRejectedValue(options.saveError)
+      : jest.fn((value) => Promise.resolve(value)),
+    findOneOrFail: jest.fn().mockResolvedValue({ id: 'a-1' }),
   };
-  const prisma = {
-    $transaction: vi.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
-  } as unknown as PrismaService;
+  const dataSource = {
+    transaction: jest.fn((fn: (m: typeof manager) => unknown) => fn(manager)),
+  };
+  const notifications = { create: jest.fn().mockResolvedValue({}) };
   const service = new AssignmentsService(
-    prisma,
-    new NotificationsService(prisma),
+    dataSource as unknown as DataSource,
+    {} as Repository<Assignment>,
+    notifications as unknown as NotificationsService,
   );
-  return { service, tx };
+  return { service, manager, notifications };
 }
 
 const assign = (service: AssignmentsService) =>
@@ -45,14 +54,20 @@ const assign = (service: AssignmentsService) =>
 
 describe('AssignmentsService.assign', () => {
   it('asigna y notifica a la autoridad y al ciudadano', async () => {
-    const { service, tx } = setup(openReport, { role: 'AUTHORITY' });
-    await assign(service);
-    expect(tx.assignment.create.mock.calls[0][0].data).toEqual({
-      reportId: REPORT_ID,
-      authorityId: AUTHORITY_ID,
-      assignedBy: ADMIN_ID,
+    const { service, manager, notifications } = setup(openReport, {
+      role: 'AUTHORITY',
     });
-    expect(tx.notification.create).toHaveBeenCalledTimes(2);
+    await assign(service);
+    expect(manager.create).toHaveBeenCalledWith(
+      Assignment,
+      expect.objectContaining({
+        reportId: REPORT_ID,
+        authorityId: AUTHORITY_ID,
+        assignedBy: ADMIN_ID,
+      }),
+    );
+    expect(notifications.create).toHaveBeenCalledTimes(2);
+    expect(notifications.create.mock.calls[0][1]).toBe(manager);
   });
 
   it('rechaza un reporte inexistente', async () => {
@@ -61,14 +76,15 @@ describe('AssignmentsService.assign', () => {
   });
 
   it('rechaza un usuario inexistente', async () => {
-    const { service } = setup(openReport, null);
+    const { service, manager } = setup(openReport, null);
     await expect(assign(service)).rejects.toThrow(NotFoundException);
+    expect(manager.findOne).toHaveBeenCalledWith(User, expect.anything());
   });
 
   it('rechaza un usuario que no es autoridad', async () => {
-    const { service, tx } = setup(openReport, { role: 'CITIZEN' });
+    const { service, manager } = setup(openReport, { role: 'CITIZEN' });
     await expect(assign(service)).rejects.toThrow(UnprocessableEntityException);
-    expect(tx.assignment.create).not.toHaveBeenCalled();
+    expect(manager.save).not.toHaveBeenCalled();
   });
 
   it('rechaza reportes resueltos y asignaciones duplicadas', async () => {
@@ -79,21 +95,22 @@ describe('AssignmentsService.assign', () => {
     await expect(assign(resolved.service)).rejects.toThrow(ConflictException);
 
     const assigned = setup(
-      { ...openReport, assignment: { id: 'a-0' } },
+      openReport,
       { role: 'AUTHORITY' },
+      { alreadyAssigned: true },
     );
     await expect(assign(assigned.service)).rejects.toThrow(ConflictException);
   });
 
-  it('convierte el choque del índice único (P2002) en 409', async () => {
-    const p2002 = new Prisma.PrismaClientKnownRequestError(
-      'Unique constraint',
-      {
-        code: 'P2002',
-        clientVersion: 'test',
-      },
+  it('convierte el choque del índice único (23505) en 409', async () => {
+    const uniqueViolation = new QueryFailedError('INSERT', [], {
+      code: '23505',
+    } as unknown as Error);
+    const { service } = setup(
+      openReport,
+      { role: 'AUTHORITY' },
+      { saveError: uniqueViolation },
     );
-    const { service } = setup(openReport, { role: 'AUTHORITY' }, p2002);
     await expect(assign(service)).rejects.toThrow(ConflictException);
   });
 });

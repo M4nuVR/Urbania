@@ -3,36 +3,35 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { ReportStatus, Role } from '../generated/prisma/enums.js';
-import { assertTransitionAllowed } from './status-transitions.js';
+import { ReportStatus } from '../reports/report.entity';
+import { Role } from '../users/user.entity';
+import { assertTransitionAllowed } from './status-transitions';
 
-const ADMIN = { id: 'admin-1', role: Role.ADMIN };
-const AUTHORITY = { id: 'auth-1', role: Role.AUTHORITY };
-const OTHER_AUTHORITY = { id: 'auth-2', role: Role.AUTHORITY };
-const CITIZEN = { id: 'cit-1', role: Role.CITIZEN };
+const ADMIN = { id: 'admin-1', roles: [Role.ADMIN] };
+const AUTHORITY = { id: 'auth-1', roles: [Role.AUTHORITY] };
+const OTHER_AUTHORITY = { id: 'auth-2', roles: [Role.AUTHORITY] };
+const CITIZEN = { id: 'cit-1', roles: [Role.CITIZEN] };
+
+const { REPORTED, UNDER_REVIEW, IN_PROGRESS, RESOLVED } = ReportStatus;
 
 describe('assertTransitionAllowed', () => {
   it('permite el flujo completo a la autoridad asignada', () => {
     const base = { actor: AUTHORITY, assignedAuthorityId: AUTHORITY.id };
     expect(() =>
+      assertTransitionAllowed({ ...base, current: REPORTED, next: UNDER_REVIEW }),
+    ).not.toThrow();
+    expect(() =>
       assertTransitionAllowed({
         ...base,
-        current: 'REPORTED',
-        next: 'UNDER_REVIEW',
+        current: UNDER_REVIEW,
+        next: IN_PROGRESS,
       }),
     ).not.toThrow();
     expect(() =>
       assertTransitionAllowed({
         ...base,
-        current: 'UNDER_REVIEW',
-        next: 'IN_PROGRESS',
-      }),
-    ).not.toThrow();
-    expect(() =>
-      assertTransitionAllowed({
-        ...base,
-        current: 'IN_PROGRESS',
-        next: 'RESOLVED',
+        current: IN_PROGRESS,
+        next: RESOLVED,
         observation: 'Reparado',
       }),
     ).not.toThrow();
@@ -41,8 +40,8 @@ describe('assertTransitionAllowed', () => {
   it('permite al administrador revisar sin asignación', () => {
     expect(() =>
       assertTransitionAllowed({
-        current: ReportStatus.REPORTED,
-        next: ReportStatus.UNDER_REVIEW,
+        current: REPORTED,
+        next: UNDER_REVIEW,
         actor: ADMIN,
         assignedAuthorityId: null,
       }),
@@ -52,8 +51,8 @@ describe('assertTransitionAllowed', () => {
   it('exige asignación para iniciar la atención, incluso al administrador', () => {
     expect(() =>
       assertTransitionAllowed({
-        current: ReportStatus.UNDER_REVIEW,
-        next: ReportStatus.IN_PROGRESS,
+        current: UNDER_REVIEW,
+        next: IN_PROGRESS,
         actor: ADMIN,
         assignedAuthorityId: null,
       }),
@@ -63,8 +62,8 @@ describe('assertTransitionAllowed', () => {
   it('rechaza al ciudadano', () => {
     expect(() =>
       assertTransitionAllowed({
-        current: ReportStatus.REPORTED,
-        next: ReportStatus.UNDER_REVIEW,
+        current: REPORTED,
+        next: UNDER_REVIEW,
         actor: CITIZEN,
         assignedAuthorityId: AUTHORITY.id,
       }),
@@ -74,8 +73,8 @@ describe('assertTransitionAllowed', () => {
   it('rechaza a una autoridad ajena', () => {
     expect(() =>
       assertTransitionAllowed({
-        current: ReportStatus.REPORTED,
-        next: ReportStatus.UNDER_REVIEW,
+        current: REPORTED,
+        next: UNDER_REVIEW,
         actor: OTHER_AUTHORITY,
         assignedAuthorityId: AUTHORITY.id,
       }),
@@ -87,38 +86,26 @@ describe('assertTransitionAllowed', () => {
     expect(() =>
       assertTransitionAllowed({
         ...base,
-        current: 'REPORTED',
-        next: 'RESOLVED',
+        current: REPORTED,
+        next: RESOLVED,
         observation: 'x',
       }),
     ).toThrow(ConflictException);
     expect(() =>
-      assertTransitionAllowed({
-        ...base,
-        current: 'IN_PROGRESS',
-        next: 'IN_PROGRESS',
-      }),
+      assertTransitionAllowed({ ...base, current: IN_PROGRESS, next: IN_PROGRESS }),
     ).toThrow(ConflictException);
     expect(() =>
-      assertTransitionAllowed({
-        ...base,
-        current: 'IN_PROGRESS',
-        next: 'UNDER_REVIEW',
-      }),
+      assertTransitionAllowed({ ...base, current: IN_PROGRESS, next: UNDER_REVIEW }),
     ).toThrow(ConflictException);
     expect(() =>
-      assertTransitionAllowed({
-        ...base,
-        current: 'RESOLVED',
-        next: 'REPORTED',
-      }),
+      assertTransitionAllowed({ ...base, current: RESOLVED, next: REPORTED }),
     ).toThrow(ConflictException);
   });
 
   it('exige observación no vacía para resolver', () => {
     const base = {
-      current: ReportStatus.IN_PROGRESS,
-      next: ReportStatus.RESOLVED,
+      current: IN_PROGRESS,
+      next: RESOLVED,
       actor: AUTHORITY,
       assignedAuthorityId: AUTHORITY.id,
     };

@@ -4,11 +4,11 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '../../prisma/prisma.service.js';
+import { DataSource } from 'typeorm';
+import { User } from '../../users/user.entity';
 
 interface AuthRequest {
-  user?: { id?: string; sub?: string; role?: string };
+  user?: { id?: string; sub?: string; role?: string; roles?: string[] };
   headers: Record<string, string | string[] | undefined>;
 }
 
@@ -22,32 +22,28 @@ const UUID_RE =
 //   el rol desde la base de datos, nunca desde la petición. Solo para probar en local.
 // - En cualquier otro caso responde 401.
 //
-// Para integrar: Persona 1 reemplaza el cuerpo de este guard por su verificación JWT,
-// o los controladores cambian AuthGuard por el guard que exporte su módulo.
+// Para integrar: Persona 1 registra su guard JWT global y este guard queda como
+// un simple chequeo de que request.user exista; después se elimina DEV_AUTH.
 @Injectable()
 export class AuthGuard implements CanActivate {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly config: ConfigService,
-  ) {}
+  constructor(private readonly dataSource: DataSource) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<AuthRequest>();
     if (request.user?.id ?? request.user?.sub) return true;
 
     const devAuth =
-      this.config.get<string>('DEV_AUTH') === 'true' &&
-      this.config.get<string>('NODE_ENV') !== 'production';
+      process.env.DEV_AUTH === 'true' && process.env.NODE_ENV !== 'production';
     const header = request.headers['x-user-id'];
     const userId = Array.isArray(header) ? header[0] : header;
 
     if (devAuth && userId && UUID_RE.test(userId)) {
-      const user = await this.prisma.user.findUnique({
+      const user = await this.dataSource.getRepository(User).findOne({
         where: { id: userId },
         select: { id: true, role: true },
       });
       if (user) {
-        request.user = user;
+        request.user = { id: user.id, role: user.role };
         return true;
       }
     }

@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '../generated/prisma/client.js';
-import type { NotificationType } from '../generated/prisma/enums.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto.js';
+import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
+import { EntityManager, FindOptionsWhere, IsNull, Repository } from 'typeorm';
+import { ListNotificationsQueryDto } from './dto/list-notifications-query.dto';
+import { Notification, NotificationType } from './notification.entity';
 
 export interface CreateNotificationInput {
   userId: string;
@@ -13,34 +14,38 @@ export interface CreateNotificationInput {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectRepository(Notification)
+    private readonly notifications: Repository<Notification>,
+  ) {}
 
-  // Recibe `tx` para crearse dentro de la transacción de quien la llama
+  // Recibe `manager` para crearse dentro de la transacción de quien la llama
   // (asignación o cambio de estado): si algo falla, la notificación se revierte.
-  create(
-    data: CreateNotificationInput,
-    tx: Prisma.TransactionClient = this.prisma,
-  ) {
-    return tx.notification.create({ data });
+  create(input: CreateNotificationInput, manager?: EntityManager) {
+    const repository = manager
+      ? manager.getRepository(Notification)
+      : this.notifications;
+    return repository.save(
+      repository.create({ id: randomUUID(), ...input, readAt: null }),
+    );
   }
 
   async findMine(userId: string, query: ListNotificationsQueryDto) {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
-    const where: Prisma.NotificationWhereInput = {
+    const where: FindOptionsWhere<Notification> = {
       userId,
-      ...(query.unreadOnly ? { readAt: null } : {}),
+      ...(query.unreadOnly ? { readAt: IsNull() } : {}),
     };
 
-    const [data, total, unread] = await this.prisma.$transaction([
-      this.prisma.notification.findMany({
+    const [[data, total], unread] = await Promise.all([
+      this.notifications.findAndCount({
         where,
-        orderBy: { createdAt: 'desc' },
+        order: { createdAt: 'DESC' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      this.prisma.notification.count({ where }),
-      this.prisma.notification.count({ where: { userId, readAt: null } }),
+      this.notifications.count({ where: { userId, readAt: IsNull() } }),
     ]);
 
     return { data, meta: { page, limit, total, unread } };
@@ -49,17 +54,13 @@ export class NotificationsService {
   // Idempotente: si ya estaba leída conserva la fecha original.
   // Una notificación ajena responde 404 para no revelar que existe.
   async markAsRead(id: string, userId: string) {
-    const notification = await this.prisma.notification.findFirst({
-      where: { id, userId },
-    });
+    const notification = await this.notifications.findOneBy({ id, userId });
     if (!notification) {
       throw new NotFoundException('Notificación no encontrada');
     }
     if (notification.readAt) return notification;
 
-    return this.prisma.notification.update({
-      where: { id },
-      data: { readAt: new Date() },
-    });
+    notification.readAt = new Date();
+    return this.notifications.save(notification);
   }
 }

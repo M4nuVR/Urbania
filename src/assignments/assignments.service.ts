@@ -4,22 +4,22 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Prisma } from '../generated/prisma/client.js';
-import {
-  NotificationType,
-  ReportStatus,
-  Role,
-} from '../generated/prisma/enums.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { CreateAssignmentDto } from './dto/create-assignment.dto.js';
-
-const authoritySelect = { id: true, name: true, email: true } as const;
+import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
+import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import { NotificationType } from '../notifications/notification.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Report, ReportStatus } from '../reports/report.entity';
+import { Role, User } from '../users/user.entity';
+import { Assignment } from './assignment.entity';
+import { CreateAssignmentDto } from './dto/create-assignment.dto';
 
 @Injectable()
 export class AssignmentsService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly dataSource: DataSource,
+    @InjectRepository(Assignment)
+    private readonly assignments: Repository<Assignment>,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -28,15 +28,10 @@ export class AssignmentsService {
   // se hace después por PATCH /reports/:id/status.
   async assign(reportId: string, dto: CreateAssignmentDto, adminId: string) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const report = await tx.report.findUnique({
+      return await this.dataSource.transaction(async (manager) => {
+        const report = await manager.findOne(Report, {
           where: { id: reportId },
-          select: {
-            title: true,
-            status: true,
-            citizenId: true,
-            assignment: { select: { id: true } },
-          },
+          select: { id: true, title: true, status: true, citizenId: true },
         });
         if (!report) throw new NotFoundException('Reporte no encontrado');
         if (report.status === ReportStatus.RESOLVED) {
@@ -44,15 +39,15 @@ export class AssignmentsService {
             'No se puede asignar un reporte resuelto',
           );
         }
-        if (report.assignment) {
+        if (await manager.existsBy(Assignment, { reportId })) {
           throw new ConflictException(
             'El reporte ya tiene una autoridad asignada',
           );
         }
 
-        const authority = await tx.user.findUnique({
+        const authority = await manager.findOne(User, {
           where: { id: dto.authorityId },
-          select: { role: true },
+          select: { id: true, role: true },
         });
         if (!authority) {
           throw new NotFoundException('Usuario responsable no encontrado');
@@ -63,14 +58,14 @@ export class AssignmentsService {
           );
         }
 
-        const assignment = await tx.assignment.create({
-          data: {
+        const assignment = await manager.save(
+          manager.create(Assignment, {
+            id: randomUUID(),
             reportId,
             authorityId: dto.authorityId,
             assignedBy: adminId,
-          },
-          include: { authority: { select: authoritySelect } },
-        });
+          }),
+        );
 
         await this.notifications.create(
           {
@@ -79,7 +74,7 @@ export class AssignmentsService {
             type: NotificationType.ASSIGNED,
             message: `Se te asignó el reporte "${report.title}".`,
           },
-          tx,
+          manager,
         );
         await this.notifications.create(
           {
@@ -88,16 +83,19 @@ export class AssignmentsService {
             type: NotificationType.ASSIGNED,
             message: `Tu reporte "${report.title}" fue asignado a una autoridad.`,
           },
-          tx,
+          manager,
         );
 
-        return assignment;
+        return manager.findOneOrFail(Assignment, {
+          where: { id: assignment.id },
+          relations: { authority: true },
+        });
       });
     } catch (error) {
-      // Dos asignaciones simultáneas: la segunda choca con el índice único report_id.
+      // Dos asignaciones simultáneas: la segunda choca con el índice único reportId.
       if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
+        error instanceof QueryFailedError &&
+        (error.driverError as { code?: string }).code === '23505'
       ) {
         throw new ConflictException(
           'El reporte ya tiene una autoridad asignada',
@@ -108,9 +106,9 @@ export class AssignmentsService {
   }
 
   async findByReport(reportId: string) {
-    const assignment = await this.prisma.assignment.findUnique({
+    const assignment = await this.assignments.findOne({
       where: { reportId },
-      include: { authority: { select: authoritySelect } },
+      relations: { authority: true },
     });
     if (!assignment) {
       throw new NotFoundException('El reporte no tiene autoridad asignada');

@@ -3,68 +3,80 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '../generated/prisma/client.js';
-import { NotificationType, ReportStatus } from '../generated/prisma/enums.js';
-import type { AuthUser } from '../common/auth/auth-user.js';
-import { NotificationsService } from '../notifications/notifications.service.js';
-import { PrismaService } from '../prisma/prisma.service.js';
-import { ChangeStatusDto } from './dto/change-status.dto.js';
-import { assertTransitionAllowed, STATUS_LABEL } from './status-transitions.js';
+import { InjectRepository } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
+import { DataSource, EntityManager, Repository } from 'typeorm';
+import { Assignment } from '../assignments/assignment.entity';
+import type { AuthenticatedPrincipal } from '../common/report-access';
+import { NotificationType } from '../notifications/notification.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { Report, ReportStatus } from '../reports/report.entity';
+import { ChangeStatusDto } from './dto/change-status.dto';
+import { assertTransitionAllowed, STATUS_LABEL } from './status-transitions';
+import { Tracking } from './tracking.entity';
 
 @Injectable()
 export class TrackingService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly dataSource: DataSource,
+    @InjectRepository(Tracking)
+    private readonly tracking: Repository<Tracking>,
     private readonly notifications: NotificationsService,
   ) {}
 
   // Único punto de cambio de estado. En una transacción: valida, actualiza
   // Report.status condicionado al estado leído, registra Tracking y notifica al
   // ciudadano dueño. Si algo falla, se revierte todo.
-  async changeStatus(reportId: string, dto: ChangeStatusDto, actor: AuthUser) {
+  async changeStatus(
+    reportId: string,
+    dto: ChangeStatusDto,
+    actor: AuthenticatedPrincipal,
+  ) {
     const observation = dto.observation || null;
 
-    return this.prisma.$transaction(async (tx) => {
-      const report = await tx.report.findUnique({
+    return this.dataSource.transaction(async (manager) => {
+      const report = await manager.findOne(Report, {
         where: { id: reportId },
-        select: {
-          title: true,
-          status: true,
-          citizenId: true,
-          assignment: { select: { authorityId: true } },
-        },
+        select: { id: true, title: true, status: true, citizenId: true },
       });
       if (!report) throw new NotFoundException('Reporte no encontrado');
+
+      const assignment = await manager.findOne(Assignment, {
+        where: { reportId },
+        select: { id: true, authorityId: true },
+      });
 
       assertTransitionAllowed({
         current: report.status,
         next: dto.newStatus,
         actor,
-        assignedAuthorityId: report.assignment?.authorityId ?? null,
+        assignedAuthorityId: assignment?.authorityId ?? null,
         observation,
       });
 
       // Control de concurrencia: si otra petición ya cambió el estado,
       // esta actualización no afecta filas y se rechaza.
-      const { count } = await tx.report.updateMany({
-        where: { id: reportId, status: report.status },
-        data: { status: dto.newStatus },
-      });
-      if (count === 0) {
+      const { affected } = await manager.update(
+        Report,
+        { id: reportId, status: report.status },
+        { status: dto.newStatus },
+      );
+      if (!affected) {
         throw new ConflictException(
           'El estado del reporte cambió mientras se procesaba la solicitud',
         );
       }
 
-      const entry = await tx.tracking.create({
-        data: {
+      const entry = await manager.save(
+        manager.create(Tracking, {
+          id: randomUUID(),
           reportId,
           previousStatus: report.status,
           newStatus: dto.newStatus,
           changedBy: actor.id,
           observation,
-        },
-      });
+        }),
+      );
 
       await this.notifications.create(
         {
@@ -73,7 +85,7 @@ export class TrackingService {
           type: NotificationType.STATUS_CHANGED,
           message: `Tu reporte "${report.title}" pasó a ${STATUS_LABEL[dto.newStatus]}.`,
         },
-        tx,
+        manager,
       );
 
       return entry;
@@ -81,28 +93,35 @@ export class TrackingService {
   }
 
   findByReport(reportId: string) {
-    return this.prisma.tracking.findMany({
+    return this.tracking.find({
       where: { reportId },
-      orderBy: { createdAt: 'asc' },
-      include: { user: { select: { id: true, name: true, role: true } } },
+      order: { createdAt: 'ASC' },
+      relations: { user: true },
+      select: {
+        id: true,
+        reportId: true,
+        previousStatus: true,
+        newStatus: true,
+        changedBy: true,
+        observation: true,
+        createdAt: true,
+        user: { id: true, name: true, role: true },
+      },
     });
   }
 
   // Para Persona 2: llamar dentro de la transacción que crea el reporte para
   // registrar la entrada inicial (previousStatus nulo).
-  // Ejemplo: await trackingService.recordInitial(tx, report.id, citizenId);
-  recordInitial(
-    tx: Prisma.TransactionClient,
-    reportId: string,
-    citizenId: string,
-  ) {
-    return tx.tracking.create({
-      data: {
+  // Ejemplo: await trackingService.recordInitial(manager, report.id, citizenId);
+  recordInitial(manager: EntityManager, reportId: string, citizenId: string) {
+    return manager.save(
+      manager.create(Tracking, {
+        id: randomUUID(),
         reportId,
         previousStatus: null,
         newStatus: ReportStatus.REPORTED,
         changedBy: citizenId,
-      },
-    });
+      }),
+    );
   }
 }
