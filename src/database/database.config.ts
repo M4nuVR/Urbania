@@ -8,6 +8,7 @@ import { CreateUsersAndReports1759900000000 } from './migrations/1759900000000-C
 import { AddLocationsAndEvidences1760000000000 } from './migrations/1760000000000-AddLocationsAndEvidences';
 import { CreateCategories1794960000000 } from './migrations/1794960000000-CreateCategories';
 import { CreateProfiles1795000000000 } from './migrations/1795000000000-CreateProfiles';
+import { LinkReportsToCategories1795100000000 } from './migrations/1795100000000-LinkReportsToCategories';
 
 // Fuente unica para la app y para el CLI de migraciones
 export const entities = [User, Report, Location, Evidence, Category, Profile];
@@ -17,4 +18,5 @@ export const migrations = [
   AddLocationsAndEvidences1760000000000,
   CreateCategories1794960000000,
   CreateProfiles1795000000000,
+  LinkReportsToCategories1795100000000,
 ];

@@ -4,9 +4,12 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Category } from '../categories/entities/category.entity';
 
 export enum ReportStatus {
   REPORTED = 'REPORTED',
@@ -15,18 +18,10 @@ export enum ReportStatus {
   REJECTED = 'REJECTED',
 }
 
-export enum ReportCategory {
-  ROADS = 'ROADS',
-  LIGHTING = 'LIGHTING',
-  WASTE = 'WASTE',
-  PUBLIC_SPACE = 'PUBLIC_SPACE',
-  SECURITY = 'SECURITY',
-  OTHER = 'OTHER',
-}
-
 @Entity({ name: 'reports' })
 @Index('idx_reports_owner_id', ['ownerId'])
 @Index('idx_reports_status', ['status'])
+@Index('idx_reports_category_id', ['categoryId'])
 export class Report {
   @ApiProperty({ format: 'uuid' })
   @PrimaryColumn('uuid')
@@ -47,9 +42,16 @@ export class Report {
   @Column({ type: 'varchar', length: 2000 })
   description: string;
 
-  @ApiProperty({ enum: ReportCategory })
-  @Column({ type: 'varchar', length: 32 })
-  category: ReportCategory;
+  @ApiProperty({ format: 'uuid' })
+  @Column({ type: 'uuid' })
+  categoryId: string;
+
+  // RESTRICT: un borrado físico de la categoría no puede dejar reportes
+  // sin clasificación. Las categorías se desactivan, no se borran.
+  @ApiProperty({ type: () => Category })
+  @ManyToOne(() => Category, { onDelete: 'RESTRICT', nullable: false })
+  @JoinColumn({ name: 'categoryId' })
+  category?: Category;
 
   @ApiProperty({ enum: ReportStatus })
   @Column({ type: 'varchar', length: 16, default: ReportStatus.REPORTED })

@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional } from 'class-validator';
-import { ReportCategory, ReportStatus } from '../report.entity';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { ReportStatus } from '../report.entity';
 
 export class ListReportsQueryDto {
   @ApiPropertyOptional({ enum: ReportStatus })
@@ -8,8 +8,11 @@ export class ListReportsQueryDto {
   @IsEnum(ReportStatus)
   status?: ReportStatus;
 
-  @ApiPropertyOptional({ enum: ReportCategory })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'También admite categorías desactivadas (consulta histórica)',
+  })
   @IsOptional()
-  @IsEnum(ReportCategory)
-  category?: ReportCategory;
+  @IsUUID()
+  categoryId?: string;
 }
