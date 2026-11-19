@@ -1,14 +1,18 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { Repository } from 'typeorm';
 import { AppModule } from './../src/app.module';
+import { Category } from './../src/categories/entities/category.entity';
 import { User, UserRole } from './../src/users/user.entity';
 
 describe('Urbania API (e2e)', () => {
   let app: INestApplication<App>;
+  // SQL.js no ejecuta migraciones: el fixture crea su propia categoría
+  let categoryId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -24,6 +28,15 @@ describe('Urbania API (e2e)', () => {
       }),
     );
     await app.init();
+    categoryId = (
+      await app.get<Repository<Category>>(getRepositoryToken(Category)).save({
+        id: randomUUID(),
+        name: 'Vías',
+        slug: 'vias',
+        description: null,
+        isActive: true,
+      })
+    ).id;
   });
 
   afterAll(async () => {
@@ -45,7 +58,7 @@ describe('Urbania API (e2e)', () => {
       .send({
         title: 'Bache en la calle 10',
         description: 'Hay un bache profundo frente al parque',
-        category: 'ROADS',
+        categoryId,
       })
       .expect(201);
     return response.body.id as string;

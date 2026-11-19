@@ -1,6 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsString, MaxLength, MinLength } from 'class-validator';
-import { ReportCategory } from '../report.entity';
+import { IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 
 export class CreateReportDto {
   @ApiProperty({ example: 'Bache en la calle 10', maxLength: 150 })
@@ -18,7 +17,10 @@ export class CreateReportDto {
   @MaxLength(2000)
   description: string;
 
-  @ApiProperty({ enum: ReportCategory, example: ReportCategory.ROADS })
-  @IsEnum(ReportCategory)
-  category: ReportCategory;
+  @ApiProperty({
+    format: 'uuid',
+    description: 'ID de una categoría activa (consultar GET /categories)',
+  })
+  @IsUUID()
+  categoryId: string;
 }

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CategoriesModule } from '../categories/categories.module';
 import { REPORT_ACCESS_PORT } from '../common/report-access';
 import { ReportAccessAdapter } from './report-access.adapter';
 import { Report } from './report.entity';
@@ -7,7 +8,7 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Report])],
+  imports: [TypeOrmModule.forFeature([Report]), CategoriesModule],
   controllers: [ReportsController],
   providers: [
     ReportsService,

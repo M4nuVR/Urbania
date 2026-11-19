@@ -31,7 +31,7 @@ Los usuarios nuevos son `CITIZEN`. Para crear un `ADMIN`, actualiza la columna `
 
 ```http
 POST  /reports
-GET   /reports?status=&category=
+GET   /reports?status=&categoryId=
 GET   /reports/{id}
 PATCH /reports/{id}
 PATCH /reports/{id}/status   (solo ADMIN)
@@ -41,11 +41,14 @@ PATCH /reports/{id}/status   (solo ADMIN)
 {
   "title": "Bache en la calle 10",
   "description": "Hay un bache profundo frente al parque",
-  "category": "ROADS"
+  "categoryId": "<UUID de GET /categories>"
 }
 ```
 
-- Categorias: `ROADS`, `LIGHTING`, `WASTE`, `PUBLIC_SPACE`, `SECURITY`, `OTHER`.
+- `categoryId` es el UUID de una categoría **activa** del catálogo (`GET /categories`). Una categoría inexistente devuelve `404`; una desactivada, `400`.
+- Si una categoría se desactiva, los reportes que ya la tienen la conservan y siguen apareciendo en consultas y filtros, pero no se puede asignar a reportes nuevos ni como cambio de categoría.
+- `PATCH /reports/{id}` admite `categoryId` (no acepta `null`). Las respuestas incluyen el objeto `category`.
+- Migración `1795100000000-LinkReportsToCategories`: crea las categorías de referencia que falten (`vias`, `alumbrado-publico`, `residuos`, `espacio-publico`, `seguridad`, `otros`), reutiliza las que ya existan sin modificarlas y traslada cada reporte desde la antigua columna `category` (`ROADS`, `LIGHTING`, `WASTE`, `PUBLIC_SPACE`, `SECURITY`, `OTHER`). Si algún reporte queda sin categoría, la migración aborta sin cambios. Su reversión solo funciona si todos los reportes usan esas seis categorías; si no, aborta y hay que restaurar el respaldo.
 - Un ciudadano solo ve y edita sus reportes; un `ADMIN` ve todos.
 - Solo se edita mientras el estado sea `REPORTED`.
 - Transiciones de estado: `REPORTED -> IN_PROGRESS | REJECTED`, `IN_PROGRESS -> RESOLVED | REJECTED`.

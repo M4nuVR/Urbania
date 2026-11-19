@@ -8,6 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'node:crypto';
 import { FindOptionsWhere, Repository } from 'typeorm';
+import { CategoriesService } from '../categories/categories.service';
 import { AuthenticatedPrincipal } from '../common/report-access';
 import { UserRole } from '../users/user.entity';
 import { CreateReportDto } from './dto/create-report.dto';
@@ -33,19 +34,23 @@ export class ReportsService {
   constructor(
     @InjectRepository(Report)
     private readonly reports: Repository<Report>,
+    private readonly categories: CategoriesService,
   ) {}
 
-  create(
+  async create(
     principal: AuthenticatedPrincipal,
     input: CreateReportDto,
   ): Promise<Report> {
+    // 404 si no existe, 400 si está desactivada
+    const category = await this.categories.findActiveById(input.categoryId);
     return this.reports.save(
       this.reports.create({
         id: randomUUID(),
         ownerId: principal.id,
         title: input.title.trim(),
         description: input.description.trim(),
-        category: input.category,
+        categoryId: category.id,
+        category,
         status: ReportStatus.REPORTED,
       }),
     );
@@ -63,10 +68,15 @@ export class ReportsService {
     if (query.status) {
       where.status = query.status;
     }
-    if (query.category) {
-      where.category = query.category;
+    // El filtro de categoría se suma al de propietario, nunca lo sustituye
+    if (query.categoryId) {
+      where.categoryId = query.categoryId;
     }
-    return this.reports.find({ where, order: { createdAt: 'DESC' } });
+    return this.reports.find({
+      where,
+      relations: { category: true },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   async findOne(
@@ -87,7 +97,7 @@ export class ReportsService {
     principal: AuthenticatedPrincipal,
     input: UpdateReportDto,
   ): Promise<Report> {
-    if (Object.keys(input).length === 0) {
+    if (Object.values(input).every((value) => value === undefined)) {
       throw new BadRequestException('Debes enviar al menos un campo');
     }
 
@@ -101,12 +111,25 @@ export class ReportsService {
       throw new ConflictException('El reporte ya no permite modificaciones');
     }
 
-    return this.reports.save({
-      ...report,
-      ...input,
-      title: input.title?.trim() ?? report.title,
-      description: input.description?.trim() ?? report.description,
-    });
+    const changes: Partial<Report> = {};
+    // null se ignora en título y descripción, como antes del cambio
+    if (input.title != null) changes.title = input.title.trim();
+    if (input.description != null) {
+      changes.description = input.description.trim();
+    }
+    // Solo se valida un cambio real de categoría: un reporte puede conservar
+    // (o reenviar) una categoría que fue desactivada después.
+    if (
+      input.categoryId !== undefined &&
+      input.categoryId !== report.categoryId
+    ) {
+      const category = await this.categories.findActiveById(input.categoryId);
+      // Se reemplaza también la relación cargada para no guardar la antigua
+      changes.categoryId = category.id;
+      changes.category = category;
+    }
+
+    return this.reports.save({ ...report, ...changes });
   }
 
   async updateStatus(
@@ -134,8 +157,12 @@ export class ReportsService {
     return this.reports.findOneBy({ id });
   }
 
+  // Incluye la categoría aunque esté desactivada (consulta histórica)
   private async getById(id: string): Promise<Report> {
-    const report = await this.findById(id);
+    const report = await this.reports.findOne({
+      where: { id },
+      relations: { category: true },
+    });
     if (!report) {
       throw new NotFoundException('Reporte no encontrado');
     }
