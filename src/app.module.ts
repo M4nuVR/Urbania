@@ -9,6 +9,7 @@ import { LocationsModule } from './locations/locations.module';
 import { ReportsModule } from './reports/reports.module';
 import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
+import { ProfilesModule } from './profiles/profiles.module';
 
 const databaseOptions: TypeOrmModuleOptions =
   process.env.NODE_ENV === 'test'
@@ -37,6 +38,7 @@ const databaseOptions: TypeOrmModuleOptions =
     LocationsModule,
     EvidencesModule,
     CategoriesModule,
+    ProfilesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
