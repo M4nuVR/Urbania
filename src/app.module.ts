@@ -2,11 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AssignmentsModule } from './assignments/assignments.module';
 import { AuthModule } from './auth/auth.module';
 import { entities, migrations } from './database/database.config';
 import { EvidencesModule } from './evidences/evidences.module';
 import { LocationsModule } from './locations/locations.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
+import { TrackingModule } from './tracking/tracking.module';
 import { UsersModule } from './users/users.module';
 import { CategoriesModule } from './categories/categories.module';
 
@@ -36,6 +39,10 @@ const databaseOptions: TypeOrmModuleOptions =
     ReportsModule,
     LocationsModule,
     EvidencesModule,
+    // Persona 4: atencion, seguimiento y notificaciones
+    AssignmentsModule,
+    TrackingModule,
+    NotificationsModule,
     CategoriesModule,
   ],
   controllers: [AppController],

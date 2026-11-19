@@ -23,7 +23,6 @@ import { CurrentPrincipal } from '../common/current-principal.decorator';
 import type { AuthenticatedPrincipal } from '../common/report-access';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ListReportsQueryDto } from './dto/list-reports-query.dto';
-import { UpdateReportStatusDto } from './dto/update-report-status.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { Report } from './report.entity';
 import { ReportsService } from './reports.service';
@@ -90,17 +89,6 @@ export class ReportsController {
     return this.reportsService.update(id, principal, input);
   }
 
-  @Patch(':id/status')
-  @ApiOperation({ summary: 'Cambiar el estado de un reporte (ADMIN)' })
-  @ApiOkResponse({ type: Report })
-  @ApiConflictResponse({ description: 'Transicion de estado no permitida' })
-  @ApiForbiddenResponse({ description: 'Solo administradores' })
-  @ApiNotFoundResponse({ description: 'Reporte no encontrado' })
-  updateStatus(
-    @Param('id', ParseUUIDPipe) id: string,
-    @CurrentPrincipal() principal: AuthenticatedPrincipal,
-    @Body() input: UpdateReportStatusDto,
-  ): Promise<Report> {
-    return this.reportsService.updateStatus(id, principal, input);
-  }
+  // El cambio de estado vive en TrackingModule (PATCH /reports/:id/status):
+  // valida la transicion, guarda el historial y notifica en una transaccion.
 }

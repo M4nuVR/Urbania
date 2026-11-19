@@ -67,24 +67,4 @@ describe('ReportsService', () => {
       service.update(report.id, owner, { title: 'Otro' }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
-
-  it('restricts status changes to admins and valid transitions', async () => {
-    await expect(
-      service.updateStatus(report.id, owner, {
-        status: ReportStatus.IN_PROGRESS,
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-
-    await expect(
-      service.updateStatus(report.id, admin, {
-        status: ReportStatus.RESOLVED,
-      }),
-    ).rejects.toBeInstanceOf(ConflictException);
-
-    await expect(
-      service.updateStatus(report.id, admin, {
-        status: ReportStatus.IN_PROGRESS,
-      }),
-    ).resolves.toMatchObject({ status: ReportStatus.IN_PROGRESS });
-  });
 });

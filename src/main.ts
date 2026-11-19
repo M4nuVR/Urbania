@@ -15,6 +15,8 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
 
+  // whitelist + forbidNonWhitelisted: rechaza campos extra en el body
+  // (por ejemplo, un `status` o `changedBy` enviado por el cliente).
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -25,7 +27,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Urbania API')
-    .setDescription('API de reportes urbanos, ubicacion y evidencias')
+    .setDescription(
+      'API de reportes urbanos, ubicacion, evidencias, atencion y notificaciones',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();

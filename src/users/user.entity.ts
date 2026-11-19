@@ -9,6 +9,8 @@ import {
 
 export enum UserRole {
   CITIZEN = 'CITIZEN',
+  // Entidad responsable de atender reportes asignados (Persona 4)
+  AUTHORITY = 'AUTHORITY',
   ADMIN = 'ADMIN',
 }
 

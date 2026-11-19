@@ -12,17 +12,10 @@ import { AuthenticatedPrincipal } from '../common/report-access';
 import { UserRole } from '../users/user.entity';
 import { CreateReportDto } from './dto/create-report.dto';
 import { ListReportsQueryDto } from './dto/list-reports-query.dto';
-import { UpdateReportStatusDto } from './dto/update-report-status.dto';
 import { UpdateReportDto } from './dto/update-report.dto';
 import { Report, ReportStatus } from './report.entity';
 
-// Transiciones permitidas para un administrador; RESOLVED y REJECTED son finales
-const STATUS_TRANSITIONS: Record<ReportStatus, readonly ReportStatus[]> = {
-  [ReportStatus.REPORTED]: [ReportStatus.IN_PROGRESS, ReportStatus.REJECTED],
-  [ReportStatus.IN_PROGRESS]: [ReportStatus.RESOLVED, ReportStatus.REJECTED],
-  [ReportStatus.RESOLVED]: [],
-  [ReportStatus.REJECTED]: [],
-};
+// Las transiciones de estado viven en src/tracking/status-transitions.ts
 
 export function isAdmin(principal: AuthenticatedPrincipal): boolean {
   return principal.roles.includes(UserRole.ADMIN);
@@ -107,27 +100,6 @@ export class ReportsService {
       title: input.title?.trim() ?? report.title,
       description: input.description?.trim() ?? report.description,
     });
-  }
-
-  async updateStatus(
-    id: string,
-    principal: AuthenticatedPrincipal,
-    input: UpdateReportStatusDto,
-  ): Promise<Report> {
-    if (!isAdmin(principal)) {
-      throw new ForbiddenException(
-        'Solo un administrador puede cambiar el estado',
-      );
-    }
-
-    const report = await this.getById(id);
-    if (!STATUS_TRANSITIONS[report.status].includes(input.status)) {
-      throw new ConflictException(
-        `No se puede pasar de ${report.status} a ${input.status}`,
-      );
-    }
-
-    return this.reports.save({ ...report, status: input.status });
   }
 
   findById(id: string): Promise<Report | null> {
