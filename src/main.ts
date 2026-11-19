@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import 'dotenv/config';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -30,7 +31,7 @@ async function bootstrap() {
       'API de reportes urbanos, ubicacion, evidencias, atencion y notificaciones',
     )
     .setVersion('1.0')
-    .addBearerAuth()
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);

@@ -11,6 +11,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { TrackingModule } from './tracking/tracking.module';
 import { UsersModule } from './users/users.module';
+import { CategoriesModule } from './categories/categories.module';
 
 const databaseOptions: TypeOrmModuleOptions =
   process.env.NODE_ENV === 'test'
@@ -42,6 +43,7 @@ const databaseOptions: TypeOrmModuleOptions =
     AssignmentsModule,
     TrackingModule,
     NotificationsModule,
+    CategoriesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
